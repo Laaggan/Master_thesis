@@ -1,4 +1,5 @@
 import numpy as np
+import matplotlib.pyplot as plt
 
 # Kernel 1 is a vertical line detector
 kernel1 = [[0, 1, 0], [0, 1, 0], [0, 1, 0]]
@@ -33,3 +34,8 @@ print(input_data)
 print(Convolution(input_data, kernel1))
 # We see weaker activations for horizontal line
 print(Convolution(input_data, kernel2))
+
+#plot vertical kernel conved with input image
+k1conim=Convolution(input_data, kernel2)
+plt.imshow(k1conim)
+plt.show()
