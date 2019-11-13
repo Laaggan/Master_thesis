@@ -87,17 +87,9 @@ def dice_coefficient(y_true, y_pred):
         K.sum(K.square(y_true_f), -1) + K.sum(K.square(y_pred_f), -1) + 1e-8)
 
 def IoU(y_true, y_pred):
-    intersection = K.sum(K.abs(y_true * y_pred), axis=-1)
-    sum_ = K.sum(K.abs(y_true) + K.abs(y_pred), axis=-1)
+    intersection = K.sum(y_true[:, 0]*y_pred[:, 0])
+    sum_ = K.sum(K.abs(y_true[:, 0]) + K.abs(y_pred[:, 0]))
     return intersection/sum_
-
-def ful_IoU(y_true, y_pred):
-    #fixme: This has to work before we do the real runs
-    intersection = K.cast(np.sum(K.eval(y_true)[:, 0] == K.eval(y_pred)[:, 0]), dtype='float32')
-    y1 = (K.eval(y_true)[:,0] > 0)
-    y2 = (K.eval(y_pred)[:,0] > 0)
-    union = K.cast(np.sum((y1 + y2) > 0), dtype='float32')
-    return intersection/union
 
 def reset_config(config, config_path=None, weights_path=None):
     new_config = config
@@ -332,7 +324,7 @@ def unet_depth(pretrained_weights = None, input_size = (256, 256, 1), num_classe
         model.load_weights(pretrained_weights)
     return model
 
-def unet(pretrained_weights=None, input_size=(256, 256, 1), num_classes=1, learning_rate=1e-4):
+def unet(pretrained_weights=None, input_size=(256, 256, 1), num_classes=1, learning_rate=1e-4, metrics=[dice_coefficient]):
     inputs = Input(input_size)
     conv1 = Conv2D(64, 3, activation='relu', padding='same', kernel_initializer='he_normal')(inputs)
     conv1 = Conv2D(64, 3, activation='relu', padding='same', kernel_initializer='he_normal')(conv1)
@@ -386,7 +378,7 @@ def unet(pretrained_weights=None, input_size=(256, 256, 1), num_classes=1, learn
     activation = Softmax(axis=-1)(permute)
 
     model = Model(input=inputs, output=activation)
-    model.compile(optimizer=Adam(lr=learning_rate), loss='categorical_crossentropy', metrics=[dice_coefficient])
+    model.compile(optimizer=Adam(lr=learning_rate), loss='categorical_crossentropy', metrics=metrics)
     if (pretrained_weights):
         model.load_weights(pretrained_weights)
     return model

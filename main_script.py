@@ -23,7 +23,7 @@ es = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=5)
 log_dir="logs/unet/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 tensorboard_callback = TensorBoard(log_dir=log_dir, histogram_freq=1)
 
-my_unet = unet_clean(input_size=(240, 240, 1), num_classes=2)
+my_unet = unet(input_size=(240, 240, 1), num_classes=2, metrics=[dice_coefficient, IoU])
 
 assert not np.any(np.isnan(X_train)), 'Input contain nans'
 

@@ -606,3 +606,15 @@ def OHE1(Y, mapping):
         temp[ind] = 1
         one_hot_enc[:, :, i] = temp
     return one_hot_enc
+
+def IoU(y_true, y_pred):
+    intersection = K.sum(K.abs(y_true * y_pred), axis=-1)
+    sum_ = K.sum(K.abs(y_true) + K.abs(y_pred), axis=-1)
+    return intersection/sum_
+
+def ful_IoU(y_true, y_pred):
+    intersection = K.cast(np.sum(K.eval(y_true)[:, 0] == K.eval(y_pred)[:, 0]), dtype='float32')
+    y1 = (K.eval(y_true)[:,0] > 0)
+    y2 = (K.eval(y_pred)[:,0] > 0)
+    union = K.cast(np.sum((y1 + y2) > 0), dtype='float32')
+    return intersection/union
