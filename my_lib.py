@@ -80,8 +80,8 @@ def OHE_uncoding(y, mapping):
     return temp
 
 def dice_coefficient(y_true, y_pred):
-    y_true_f = K.flatten(y_true)
-    y_pred_f = K.flatten(y_pred)
+    y_true_f = K.flatten(y_true[:, 0])
+    y_pred_f = K.flatten(y_pred[:, 0])
     intersection = K.sum(K.abs(y_true_f * y_pred_f), axis=-1)
     return (2. * intersection) / (
         K.sum(K.square(y_true_f), -1) + K.sum(K.square(y_pred_f), -1) + 1e-8)
