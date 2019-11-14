@@ -19,6 +19,39 @@ from scipy.stats import zscore
 from sklearn.preprocessing import StandardScaler
 from sklearn.preprocessing import normalize
 
+def shift_and_scale(x):
+    assert len(x.shape) == 2, 'The input must be 2 dimensional'
+    # assert np.std(x) != 0, 'Cant divide by zero'
+    result = x - np.mean(x)
+
+    # This is a really ugly hack
+    if np.std(x) == 0:
+        result /= 1
+    else:
+        result /= np.std(x)
+    return result
+
+def OHE2(Y):
+    '''
+    :param Y: A slice containing original BraTS-data with classes {0,1,2,4}
+    :return: A slice where classes 1 and 4 has been merged and this has been one hot encoded
+    '''
+    shape = Y.shape
+    one_hot_enc = np.zeros(list(shape) + [2])
+    temp = np.zeros(shape)
+    temp2 = np.ones(shape)
+    
+    ind1 = Y == 1
+    ind2 = Y == 4
+    temp[ind1] = 1
+    temp[ind2] = 1
+    
+    temp2 = temp2 - temp
+    
+    one_hot_enc[:, :, 0] = temp
+    one_hot_enc[:, :, 1] = temp2
+    return one_hot_enc
+
 def plot_modalities(x):
     # Make sure input data is of correct shape
     assert x.shape == (240, 240, 4), 'Shape of input data is incorrect'
@@ -301,7 +334,6 @@ def convert_brats(Y):
     result = temp
     return result
 
-
 def load_patients(i, j, num_classes, base_path=""):
     assert j >= i, 'j>i has to be true, you have given an invalid range of patients.'
 
@@ -418,7 +450,8 @@ def load_patients2(i, j, base_path=""):
                 curr_patient.append(l)
                 num_non_empty_slices += 1
                 patients.add(k)
-        ind.append(curr_patient)
+        if len(curr_patient) > 0:
+            ind.append(curr_patient)
 
     image_data = np.zeros((1, 240, 240, num_non_empty_slices))
     labels = np.zeros((num_non_empty_slices, 240, 240))

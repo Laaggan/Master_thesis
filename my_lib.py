@@ -37,18 +37,6 @@ mapping2 = {
     1: "Tumor",
 }
 
-def shift_and_scale(x):
-    assert len(x.shape) == 2, 'The input must be 2 dimensional'
-    # assert np.std(x) != 0, 'Cant divide by zero'
-    result = x - np.mean(x)
-
-    # This is a really ugly hack
-    if np.std(x) == 0:
-        result /= 1
-    else:
-        result /= np.std(x)
-    return result
-
 def OHE(Y):
     '''
     :param Y: A slice containing original BraTS-data with classes {0,1,2,4}
@@ -68,6 +56,28 @@ def OHE(Y):
     
     one_hot_enc[:, :, 0] = temp
     one_hot_enc[:, :, 1] = temp2
+    return one_hot_enc
+
+def OHE1(Y, mapping):
+    '''
+    Takes in a picture as a matrix with labels and returns a one hot encoded tensor
+
+    Parameters:
+    Y is the picture
+    Mapping is what value corresponds to what label
+
+    Returns:
+    A tensor with a channel for each label.
+    '''
+    shape = Y.shape
+    labels = mapping.keys()
+    one_hot_enc = np.zeros(list(shape) + [len(labels)])
+
+    for i, label in enumerate(labels):
+        temp = np.zeros(shape)
+        ind = Y == label
+        temp[ind] = 1
+        one_hot_enc[:, :, i] = temp
     return one_hot_enc
 
 def OHE_uncoding(y, mapping):
@@ -133,6 +143,133 @@ class CallbackJSON(Callback):
         with open(self.config_path, "w") as f:
             f.write(json.dumps(self.config))
 
+def load_patients_new_again(i, j, modalities, slices=None, base_path=""):
+    # Modalities 't1', 't1ce', 't2', 'flair'
+    assert j >= i, 'j>i has to be true, you have given an invalid range of patients.'
+    '''
+    assert type(modalities) == type([ 't1', 't1ce', 't2', 'flair']), 'Modalities argument must be a list'
+    path = base_path + "MICCAI_BraTS_2019_Data_Training/*/*/*"
+    wild_gt = base_path + "MICCAI_BraTS_2019_Data_Training/*/*/*_seg.nii.gz"
+    
+    wild_paths = []
+    for modality in modalities:
+        temp = path + "_" + modality + ".nii.gz"
+        wild_paths.append(temp)
+    
+    modality_paths = []
+    for wild_path in wild_paths:
+        temp = glob.glob(wild_path)
+        modality_paths.append(temp)
+    '''
+    n = len(modalities)
+    '''
+    # What Carl's algorithm output
+    y_up = 40
+    y_down = 212
+    x_left = 29
+    x_right = 220
+    '''
+    y_up = 40
+    y_down = 216
+    x_left = 40
+    x_right = 216
+
+    H = y_down-y_up
+    W = x_right-x_left
+
+    path = base_path + "MICCAI_BraTS_2019_Data_Training/*/*/*"
+
+    wild_t1 = path + "_t1.nii.gz"
+    wild_t1ce = path + "_t1ce.nii.gz"
+    wild_t2 = path + "_t2.nii.gz"
+    wild_flair = path + "_flair.nii.gz"
+    wild_gt = path + "_seg.nii.gz"
+
+    t1_paths = glob.glob(wild_t1)
+    t1ce_paths = glob.glob(wild_t1ce)
+    t2_paths = glob.glob(wild_t2)
+    flair_paths = glob.glob(wild_flair)
+    gt_paths = glob.glob(wild_gt)
+
+    num_non_empty_slices = 0
+
+    for x in range(i, j):
+        for y in slices[str(x)]:
+            num_non_empty_slices += 1
+
+    image_data = np.zeros((4, W, H, num_non_empty_slices))
+    labels = np.zeros((num_non_empty_slices, W, H))
+    OHE_labels = np.zeros((num_non_empty_slices, W, H, 4))
+    next_ind = 0
+
+    for i in range(i, j):
+        print('Patient: ' + str(i))
+        curr_ind = slices[str(i)]
+
+        path_t1 = t1_paths[i]
+        path_t1ce = t1ce_paths[i]
+        path_t2 = t2_paths[i]
+        path_flair = flair_paths[i]
+        path_gt = gt_paths[i]
+
+        img_t1 = nib.load(path_t1)
+        img_t1ce = nib.load(path_t1ce)
+        img_t2 = nib.load(path_t2)
+        img_flair = nib.load(path_flair)
+        img_gt = nib.load(path_gt)
+
+        img_t1 = img_t1.get_fdata()
+        img_t1ce = img_t1ce.get_fdata()
+        img_t2 = img_t2.get_fdata()
+        img_flair = img_flair.get_fdata()
+        img_gt = img_gt.get_fdata()
+
+        img_t1 = img_t1[x_left:x_right, y_up:y_down, :]
+        img_t1ce = img_t1ce[x_left:x_right, y_up:y_down, :]
+        img_t2 = img_t2[x_left:x_right, y_up:y_down, :]
+        img_flair = img_flair[x_left:x_right, y_up:y_down, :]
+        img_gt = img_gt[x_left:x_right, y_up:y_down, :]
+
+        temp = 0
+        for i, x in enumerate(curr_ind):
+            image_data[0, :, :, next_ind + i] = img_t1[:, :, x]
+            image_data[1, :, :, next_ind + i] = img_t1ce[:, :, x]
+            image_data[2, :, :, next_ind + i] = img_t2[:, :, x]
+            image_data[3, :, :, next_ind + i] = img_flair[:, :, x]
+            labels[next_ind + i, :, :] = img_gt[:, :, x]
+            temp += 1
+        next_ind += temp
+
+    for j in range(next_ind):
+        # shift and scale data
+        image_data[0, :, :, j] = normalize(image_data[0, :, :, j])
+        image_data[1, :, :, j] = normalize(image_data[1, :, :, j])
+        image_data[2, :, :, j] = normalize(image_data[2, :, :, j])
+        image_data[3, :, :, j] = normalize(image_data[3, :, :, j])
+
+        OHE_labels[j, :, :, :] = OHE1(labels[j, :, :], mapping)
+
+    # The last axis will become the first axis
+    image_data = np.moveaxis(image_data, -1, 0)
+    image_data = np.moveaxis(image_data, 1, 3)
+
+    return_image_data = np.zeros((num_non_empty_slices, W, H, n))
+    for i in range(n):
+        temp = modalities[i]
+        if temp == 't1':
+            return_image_data[:, :, :, i] = image_data[:, :, :, 0]
+        if temp == 't1ce':
+            return_image_data[:, :, :, i] = image_data[:, :, :, 1]
+            print('code is here')
+        if temp == 't2':
+            return_image_data[:, :, :, i] = image_data[:, :, :, 2]
+        if temp == 'flair':
+            return_image_data[:, :, :, i] = image_data[:, :, :, 2]
+
+    return (return_image_data, OHE_labels, labels)
+
+            
+            
 def load_patients(i, j, base_path="", rescale=None):
     '''
     Function which loads patients from BraTS data
@@ -212,8 +349,8 @@ def load_patients(i, j, base_path="", rescale=None):
     return (image_data, OHE_labels, patients)
 
 def conv_block(input_, num_kernels, kernel_size, act_func, drop_rate):
-    conv = Conv2D(num_kernels, kernel_size,activation = act_func, padding = 'same', kernel_initializer = 'he_normal')(input_)
-    conv = Conv2D(num_kernels, kernel_size, activation = act_func, padding = 'same', kernel_initializer = 'he_normal')(conv)
+    conv = Conv2D(num_kernels, kernel_size, activation=act_func, padding='same', kernel_initializer='he_normal')(input_)
+    conv = Conv2D(num_kernels, kernel_size, activation=act_func, padding='same', kernel_initializer='he_normal')(conv)
     drop = Dropout(drop_rate)(conv)
     return conv
 
@@ -285,7 +422,7 @@ def unet_clean(pretrained_weights = None, input_size = (256, 256, 1), num_classe
     return model
 
 def unet_depth(pretrained_weights = None, input_size = (256, 256, 1), num_classes=2, learning_rate=1e-4, act_func='relu', res=False, 
-               depth=4, num_kernels = [64, 128, 256, 512]):
+               depth=4, num_kernels=[64, 128, 256, 512]):
     assert depth == len(num_kernels), 'Depth and number of kernel sizes must be equal'
     
     encoder = []
@@ -296,7 +433,7 @@ def unet_depth(pretrained_weights = None, input_size = (256, 256, 1), num_classe
             result = [skip, conv]
             encoder.append(result)
         else:
-            skip, conv = down_sampling_block(encoder[i-1][1], act_func, num_kernels=num_kernels[i], drop_rate=0, input_size = input_size, res=res)
+            skip, conv = down_sampling_block(encoder[i-1][1], act_func, num_kernels=num_kernels[i], drop_rate=0, input_size=input_size, res=res)
             result = [skip, conv]
             encoder.append(result)
 
@@ -324,7 +461,8 @@ def unet_depth(pretrained_weights = None, input_size = (256, 256, 1), num_classe
         model.load_weights(pretrained_weights)
     return model
 
-def unet(pretrained_weights=None, input_size=(256, 256, 1), num_classes=1, learning_rate=1e-4, metrics=[dice_coefficient]):
+def unet(pretrained_weights=None, input_size=(256, 256, 1), num_classes=1,
+         learning_rate=1e-4, drop_rate=0.5, metrics=[dice_coefficient]):
     inputs = Input(input_size)
     conv1 = Conv2D(64, 3, activation='relu', padding='same', kernel_initializer='he_normal')(inputs)
     conv1 = Conv2D(64, 3, activation='relu', padding='same', kernel_initializer='he_normal')(conv1)
@@ -340,21 +478,22 @@ def unet(pretrained_weights=None, input_size=(256, 256, 1), num_classes=1, learn
 
     conv4 = Conv2D(512, 3, activation='relu', padding='same', kernel_initializer='he_normal')(pool3)
     conv4 = Conv2D(512, 3, activation='relu', padding='same', kernel_initializer='he_normal')(conv4)
-    drop4 = Dropout(0.5)(conv4)
+    drop4 = Dropout(drop_rate)(conv4)
     pool4 = MaxPooling2D(pool_size=(2, 2))(drop4)
 
     conv5 = Conv2D(1024, 3, activation='relu', padding='same', kernel_initializer='he_normal')(pool4)
     conv5 = Conv2D(1024, 3, activation='relu', padding='same', kernel_initializer='he_normal')(conv5)
-    drop5 = Dropout(0.5)(conv5)
+    drop5 = Dropout(drop_rate)(conv5)
 
     up6 = Conv2D(512, 2, activation='relu', padding='same', kernel_initializer='he_normal')(
         UpSampling2D(size=(2, 2))(drop5))
     merge6 = concatenate([drop4, up6], axis=3)
     conv6 = Conv2D(512, 3, activation='relu', padding='same', kernel_initializer='he_normal')(merge6)
     conv6 = Conv2D(512, 3, activation='relu', padding='same', kernel_initializer='he_normal')(conv6)
+    drop6 = Dropout(drop_rate)(conv6)
 
     up7 = Conv2D(256, 2, activation='relu', padding='same', kernel_initializer='he_normal')(
-        UpSampling2D(size=(2, 2))(conv6))
+        UpSampling2D(size=(2, 2))(drop6))
     merge7 = concatenate([conv3, up7], axis=3)
     conv7 = Conv2D(256, 3, activation='relu', padding='same', kernel_initializer='he_normal')(merge7)
     conv7 = Conv2D(256, 3, activation='relu', padding='same', kernel_initializer='he_normal')(conv7)
