@@ -46,14 +46,14 @@ def OHE(Y):
     one_hot_enc = np.zeros(list(shape) + [2])
     temp = np.zeros(shape)
     temp2 = np.ones(shape)
-    
+
     ind1 = Y == 1
     ind2 = Y == 4
     temp[ind1] = 1
     temp[ind2] = 1
-    
+
     temp2 = temp2 - temp
-    
+
     one_hot_enc[:, :, 0] = temp
     one_hot_enc[:, :, 1] = temp2
     return one_hot_enc
@@ -96,6 +96,22 @@ def dice_coefficient(y_true, y_pred):
     return (2. * intersection) / (
         K.sum(K.square(y_true_f), -1) + K.sum(K.square(y_pred_f), -1) + 1e-8)
 
+#dice_coef new added 15/11
+def dice_coef(y_true, y_pred, smooth=1):
+  intersection = K.sum(y_true * y_pred, axis=[-1])
+  union = K.sum(y_true, axis=[2]) + K.sum(y_pred, axis=[-1])
+  dice = K.mean((2. * intersection + smooth)/(union + smooth), axis=0)
+  return dice
+
+#meanIoU-added 14/11
+NUM_CLASSES = 4
+def mean_iou(y_true, y_pred):
+   score, up_opt = tf.compat.v1.metrics.mean_iou(y_true, y_pred, NUM_CLASSES)
+   K.get_session().run(tf.local_variables_initializer())
+   with tf.control_dependencies([up_opt]):
+       score = tf.identity(score)
+   return score
+
 def IoU(y_true, y_pred):
     intersection = K.sum(y_true[:, 0]*y_pred[:, 0])
     sum_ = K.sum(K.abs(y_true[:, 0]) + K.abs(y_pred[:, 0]))
@@ -132,12 +148,12 @@ class CallbackJSON(Callback):
         """
         # How many effective training samples have been used
         self.config['history']['training_samples_used'] += self.config['samples_used']
-        
+
         # Logs the loss of the current epoch
         self.config['history']['loss'].append(logs['loss'])
         #fixme: add the same code but for "val_loss"
         self.config['history']['val_loss'].append(logs['val_loss'])
-        
+
         print_memory_use()
         # Save new config file
         with open(self.config_path, "w") as f:
@@ -150,12 +166,12 @@ def load_patients_new_again(i, j, modalities, slices=None, base_path=""):
     assert type(modalities) == type([ 't1', 't1ce', 't2', 'flair']), 'Modalities argument must be a list'
     path = base_path + "MICCAI_BraTS_2019_Data_Training/*/*/*"
     wild_gt = base_path + "MICCAI_BraTS_2019_Data_Training/*/*/*_seg.nii.gz"
-    
+
     wild_paths = []
     for modality in modalities:
         temp = path + "_" + modality + ".nii.gz"
         wild_paths.append(temp)
-    
+
     modality_paths = []
     for wild_path in wild_paths:
         temp = glob.glob(wild_path)
@@ -268,8 +284,8 @@ def load_patients_new_again(i, j, modalities, slices=None, base_path=""):
 
     return (return_image_data, OHE_labels, labels)
 
-            
-            
+
+
 def load_patients(i, j, base_path="", rescale=None):
     '''
     Function which loads patients from BraTS data
@@ -376,7 +392,7 @@ def conv_block_resnet(input_, num_kernels, kernel_size, act_func, drop_rate, inp
 
 def down_sampling_block(input_, act_func, num_kernels, drop_rate, input_size, res=False):
     if res:
-        skip = conv_block_resnet(input_=input_, num_kernels=num_kernels, kernel_size=(3,3), 
+        skip = conv_block_resnet(input_=input_, num_kernels=num_kernels, kernel_size=(3,3),
                                  act_func=act_func, drop_rate=drop_rate, input_size=input_size)
     else:
         skip = conv_block(input_, num_kernels=num_kernels, kernel_size=(3,3), act_func=act_func, drop_rate=drop_rate)
@@ -387,7 +403,7 @@ def up_sampling_block(input_, skip, act_func, num_kernels, drop_rate, input_size
     up = UpSampling2D(size = (2, 2))(input_)
     merge = concatenate([skip, up], axis = 3)
     if res:
-        conv = conv_block_resnet(up, num_kernels=num_kernels, kernel_size=(3,3), 
+        conv = conv_block_resnet(up, num_kernels=num_kernels, kernel_size=(3,3),
                                  act_func=act_func, drop_rate=drop_rate, input_size=input_size)
     else:
         conv = conv_block(merge, num_kernels, (3,3), act_func, drop_rate)
@@ -400,10 +416,10 @@ def unet_clean(pretrained_weights = None, input_size = (256, 256, 1), num_classe
     skip2, pool2 = down_sampling_block(pool1, act_func, num_kernels=128, drop_rate=0, input_size = input_size, res=res)
     skip3, pool3 = down_sampling_block(pool2, act_func, num_kernels=256, drop_rate=0, input_size = input_size, res=res)
     skip4, pool4 = down_sampling_block(pool3, act_func, num_kernels=512, drop_rate=0.2, input_size = input_size, res=res)
-    
+
     #Bottleneck
     conv5 = conv_block(pool4, 1024, 3, act_func, drop_rate=0.2)
-    
+
     # Decoder
     conv6 = up_sampling_block(conv5, skip4, act_func, 512, drop_rate = 0.2, input_size = input_size, res=res)
     conv7 = up_sampling_block(conv6, skip3, act_func, 256, drop_rate = 0, input_size = input_size, res=res)
@@ -414,17 +430,17 @@ def unet_clean(pretrained_weights = None, input_size = (256, 256, 1), num_classe
     reshape = Reshape((num_classes, input_size[0] * input_size[1]), input_shape = (num_classes, input_size[0], input_size[1]))(conv9)
     permute = Permute((2, 1))(reshape)
     activation = Softmax(axis=-1)(permute)
-    
+
     model = Model(input=inputs, output=activation)
     model.compile(optimizer=Adam(lr=learning_rate), loss='categorical_crossentropy', metrics=['accuracy'])
     if pretrained_weights:
         model.load_weights(pretrained_weights)
     return model
 
-def unet_depth(pretrained_weights = None, input_size = (256, 256, 1), num_classes=2, learning_rate=1e-4, act_func='relu', res=False, 
+def unet_depth(pretrained_weights = None, input_size = (256, 256, 1), num_classes=2, learning_rate=1e-4, act_func='relu', res=False,
                depth=4, num_kernels=[64, 128, 256, 512]):
     assert depth == len(num_kernels), 'Depth and number of kernel sizes must be equal'
-    
+
     encoder = []
     inputs = Input(input_size)
     for i in range(depth):
@@ -447,13 +463,13 @@ def unet_depth(pretrained_weights = None, input_size = (256, 256, 1), num_classe
         else:
             skip = encoder[depth - i - 1][0]
             decoder.append(up_sampling_block(decoder[i - 1], skip, act_func, num_kernels=num_kernels[depth - i - 1], drop_rate=0, input_size = input_size, res=res))
-            
+
     # prepare for softmax
     conv = Conv2D(num_classes, 1, activation = act_func, padding = 'same', kernel_initializer = 'he_normal')(decoder[depth - 1])
     reshape = Reshape((num_classes, input_size[0] * input_size[1]), input_shape = (num_classes, input_size[0], input_size[1]))(conv)
     permute = Permute((2, 1))(reshape)
     activation = Softmax(axis=-1)(permute)
-    
+
     # Compile model and load pretrained weights
     model = Model(input = inputs, output = activation)
     model.compile(optimizer = Adam(lr=learning_rate), loss = 'categorical_crossentropy', metrics=['accuracy'])
