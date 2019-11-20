@@ -1,7 +1,5 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from keras.callbacks import Callback
-import keras.backend as K
 import json
 import psutil
 import glob
@@ -9,13 +7,21 @@ import nibabel as nib
 import os
 import skimage.io as io
 import skimage.transform as trans
-from keras.models import *
-from keras.layers import *
-from keras.activations import *
-from keras.optimizers import *
 from sklearn.preprocessing import normalize
 from scipy.ndimage import zoom
-
+from keras.models import *
+from keras.layers import *
+import keras.backend as K
+from keras.activations import *
+from keras.optimizers import *
+from keras.callbacks import Callback
+from keras.models import *
+from keras.layers import *
+from keras.optimizers import *
+from keras import backend as K
+from keras.callbacks import ModelCheckpoint
+from keras.initializers import random_normal
+from keras.regularizers import l1_l2
 
 def print_memory_use():
     '''
@@ -103,15 +109,24 @@ def dice_coef(y_true, y_pred, smooth=1):
   dice = K.mean((2. * intersection + smooth)/(union + smooth), axis=0)
   return dice
 
-#meanIoU-added 14/11
-NUM_CLASSES = 4
-def mean_iou(y_true, y_pred):
-   score, up_opt = tf.compat.v1.metrics.mean_iou(y_true, y_pred, NUM_CLASSES)
-   K.get_session().run(tf.local_variables_initializer())
-   with tf.control_dependencies([up_opt]):
-       score = tf.identity(score)
-   return score
 
+#meanIoU-added 14/11
+def mean_iou(y_true, y_pred):
+    NUM_CLASSES = 4
+    score, up_opt = tf.compat.v1.metrics.mean_iou(y_true, y_pred, NUM_CLASSES)
+    #score, up_opt = mean_iou(y_true, y_pred)
+    K.get_session().run(tf.local_variables_initializer())
+    with tf.control_dependencies([up_opt]):
+        score = tf.identity(score)
+    return score
+'''
+
+def mean_iou(y_true, y_pred):
+    y_pred = K.one_hot(K.argmax(y_pred, axis=-1), num_classes=4)
+    inter = K.sum(K.sum(y_true * y_pred, axis=2), axis=1)
+    union = K.sum(K.sum(y_true + y_pred, axis=2), axis=1) - inter
+    return K.mean((inter + K.epsilon()) / (union + K.epsilon()))
+'''
 def IoU(y_true, y_pred):
     intersection = K.sum(y_true[:, 0]*y_pred[:, 0])
     sum_ = K.sum(K.abs(y_true[:, 0]) + K.abs(y_pred[:, 0]))
@@ -276,14 +291,12 @@ def load_patients_new_again(i, j, modalities, slices=None, base_path=""):
             return_image_data[:, :, :, i] = image_data[:, :, :, 0]
         if temp == 't1ce':
             return_image_data[:, :, :, i] = image_data[:, :, :, 1]
-            print('code is here')
         if temp == 't2':
             return_image_data[:, :, :, i] = image_data[:, :, :, 2]
         if temp == 'flair':
             return_image_data[:, :, :, i] = image_data[:, :, :, 2]
 
     return (return_image_data, OHE_labels, labels)
-
 
 
 def load_patients(i, j, base_path="", rescale=None):
@@ -369,7 +382,7 @@ def conv_block(input_, num_kernels, kernel_size, act_func, drop_rate):
     conv = Conv2D(num_kernels, kernel_size, activation=act_func, padding='same', kernel_initializer='he_normal')(conv)
     drop = Dropout(drop_rate)(conv)
     return conv
-
+'''
 def conv_block(input_, num_kernels, kernel_size, act_func, drop_rate):
     argz = [num_kernels, kernel_size]
     kwargz = {'activation':act_func, 'padding':'same', 'kernel_initializer':'he_normal'}
@@ -377,7 +390,7 @@ def conv_block(input_, num_kernels, kernel_size, act_func, drop_rate):
     conv = Conv2D(*argz, **kwargz)(conv)
     drop = Dropout(drop_rate)(conv)
     return conv
-
+'''
 def conv_block_resnet(input_, num_kernels, kernel_size, act_func, drop_rate, input_size):
     argz = [num_kernels, kernel_size]
     kwargz = {'activation':act_func, 'padding':'same', 'kernel_initializer':'he_normal'}
@@ -409,7 +422,8 @@ def up_sampling_block(input_, skip, act_func, num_kernels, drop_rate, input_size
         conv = conv_block(merge, num_kernels, (3,3), act_func, drop_rate)
     return conv
 
-def unet_clean(pretrained_weights = None, input_size = (256, 256, 1), num_classes=2, learning_rate=1e-4, act_func='relu', res=False):
+def unet_clean(pretrained_weights = None, input_size = (256, 256, 1), num_classes=2, learning_rate=1e-4, act_func='relu', res=False,
+               metrics=None):
     # Encoder
     inputs = Input(input_size)
     skip1, pool1 = down_sampling_block(inputs, act_func, num_kernels=64, drop_rate=0, input_size = input_size, res=res)
@@ -429,16 +443,16 @@ def unet_clean(pretrained_weights = None, input_size = (256, 256, 1), num_classe
 
     reshape = Reshape((num_classes, input_size[0] * input_size[1]), input_shape = (num_classes, input_size[0], input_size[1]))(conv9)
     permute = Permute((2, 1))(reshape)
-    activation = Softmax(axis=-1)(permute)
+    activation = Softmax(axis=-1, dtype='float64')(permute)
 
     model = Model(input=inputs, output=activation)
-    model.compile(optimizer=Adam(lr=learning_rate), loss='categorical_crossentropy', metrics=['accuracy'])
+    model.compile(optimizer=Adam(lr=learning_rate), loss='categorical_crossentropy', metrics=metrics)
     if pretrained_weights:
         model.load_weights(pretrained_weights)
     return model
 
-def unet_depth(pretrained_weights = None, input_size = (256, 256, 1), num_classes=2, learning_rate=1e-4, act_func='relu', res=False,
-               depth=4, num_kernels=[64, 128, 256, 512]):
+def unet_depth(pretrained_weights = None, input_size = (256, 256, 1), num_classes=2, learning_rate=1e-4,
+               act_func='relu', res=False, depth=4, num_kernels=[64, 128, 256, 512], metrics=None):
     assert depth == len(num_kernels), 'Depth and number of kernel sizes must be equal'
 
     encoder = []
@@ -459,27 +473,27 @@ def unet_depth(pretrained_weights = None, input_size = (256, 256, 1), num_classe
     for i in range(depth):
         if i == 0:
             skip = encoder[depth - 1][0]
-            decoder.append(up_sampling_block(bottleneck, skip, act_func, num_kernels=num_kernels[depth - i - 1], drop_rate=0, input_size = input_size, res=res))
+            decoder.append(up_sampling_block(bottleneck, skip, act_func, num_kernels=num_kernels[depth - i - 1], drop_rate=0, input_size=input_size, res=res))
         else:
             skip = encoder[depth - i - 1][0]
-            decoder.append(up_sampling_block(decoder[i - 1], skip, act_func, num_kernels=num_kernels[depth - i - 1], drop_rate=0, input_size = input_size, res=res))
+            decoder.append(up_sampling_block(decoder[i - 1], skip, act_func, num_kernels=num_kernels[depth - i - 1], drop_rate=0, input_size=input_size, res=res))
 
     # prepare for softmax
-    conv = Conv2D(num_classes, 1, activation = act_func, padding = 'same', kernel_initializer = 'he_normal')(decoder[depth - 1])
+    conv = Conv2D(num_classes, 1, activation=act_func, padding='same', kernel_initializer='he_normal')(decoder[depth - 1])
     reshape = Reshape((num_classes, input_size[0] * input_size[1]), input_shape = (num_classes, input_size[0], input_size[1]))(conv)
     permute = Permute((2, 1))(reshape)
     activation = Softmax(axis=-1)(permute)
 
     # Compile model and load pretrained weights
-    model = Model(input = inputs, output = activation)
-    model.compile(optimizer = Adam(lr=learning_rate), loss = 'categorical_crossentropy', metrics=['accuracy'])
+    model = Model(input=inputs, output=activation)
+    model.compile(optimizer=Adam(lr=learning_rate), loss='categorical_crossentropy', metrics=metrics)
     if (pretrained_weights):
         model.load_weights(pretrained_weights)
     return model
 
-def unet(pretrained_weights=None, input_size=(256, 256, 1), num_classes=1,
+def unet(input_size, num_classes, pretrained_weights=None,
          learning_rate=1e-4, drop_rate=0.5, metrics=[dice_coefficient]):
-    inputs = Input(input_size)
+    inputs = Input(input_size, name='my_placeholder', dtype='float32')
     conv1 = Conv2D(64, 3, activation='relu', padding='same', kernel_initializer='he_normal')(inputs)
     conv1 = Conv2D(64, 3, activation='relu', padding='same', kernel_initializer='he_normal')(conv1)
     pool1 = MaxPooling2D(pool_size=(2, 2))(conv1)
@@ -527,16 +541,112 @@ def unet(pretrained_weights=None, input_size=(256, 256, 1), num_classes=1,
     conv9 = Conv2D(64, 3, activation='relu', padding='same', kernel_initializer='he_normal')(conv9)
     conv9 = Conv2D(num_classes, 1, activation='relu', padding='same', kernel_initializer='he_normal')(conv9)
 
-    reshape = Reshape((num_classes, input_size[0] * input_size[1]),
+    reshape = Reshape((input_size[0] * input_size[1], num_classes),
                       input_shape=(num_classes, input_size[0], input_size[1]))(conv9)
-    permute = Permute((2, 1))(reshape)
-    activation = Softmax(axis=-1)(permute)
+    activation = Softmax(axis=-1)(reshape)
 
-    model = Model(input=inputs, output=activation)
-    model.compile(optimizer=Adam(lr=learning_rate), loss='categorical_crossentropy', metrics=metrics)
+    model = Model(inputs=[inputs], outputs=[activation])
+    sgd = SGD(lr=learning_rate, decay=1e-6, momentum=0.9, nesterov=True)
+    #model.compile(optimizer=Adam(lr=learning_rate), loss='categorical_crossentropy', metrics=metrics)
+    model.compile(optimizer=sgd, loss='categorical_crossentropy', metrics=metrics)
     if (pretrained_weights):
         model.load_weights(pretrained_weights)
     return model
+
+def unet_dong_et_al(input_size, num_classes, drop_rate, lr, loss, metrics):
+    # Code based on paper:
+    # https://arxiv.org/pdf/1705.03820.pdf
+    kernel_size = 3
+    conv_kwargs = {
+        'strides':(1, 1), 
+        'padding': 'same', 
+        'activation':'relu', 
+        'kernel_initializer':random_normal(stddev=0.01),
+        # Why we do activity regularising:
+        # https://stackoverflow.com/questions/44495698/keras-difference-between-kernel-and-activity-regularizers
+        'activity_regularizer':l1_l2()
+    }
+    conv_kwargs_fin = {
+        'strides':(1, 1), 
+        'padding': 'same', 
+        'activation':'relu', 
+        'kernel_initializer':random_normal(stddev=0.01)
+    }
+    pooling_kwargs = {
+        'pool_size':(2,2),
+        'padding':'valid'
+    }
+
+    # Encoder
+    inputs = Input(input_size)
+    conv1 = Conv2D(64, kernel_size, name='conv11', **conv_kwargs)(inputs)
+    conv1 = Dropout(rate=drop_rate, name='drop11')(conv1)
+    conv1 = Conv2D(64, kernel_size, name='conv12', **conv_kwargs)(conv1)
+    conv1 = Dropout(rate=drop_rate, name='drop12')(conv1)
+    pool1 = MaxPooling2D(name='pool1', **pooling_kwargs)(conv1)
+    
+    conv2 = Conv2D(128, kernel_size, name='conv21', **conv_kwargs)(pool1)
+    conv2 = Dropout(rate=drop_rate, name='drop21')(conv2)
+    conv2 = Conv2D(128, kernel_size, name='conv22', **conv_kwargs)(conv2)
+    conv2 = Dropout(rate=drop_rate, name='drop22')(conv2)
+    pool2 = MaxPooling2D(**pooling_kwargs, name='pool2')(conv2)
+    
+    conv3 = Conv2D(256, kernel_size, **conv_kwargs)(pool2)
+    conv3 = Dropout(rate=drop_rate)(conv3)
+    conv3 = Conv2D(256, kernel_size, **conv_kwargs)(conv3)
+    conv3 = Dropout(rate=drop_rate)(conv3)
+    pool3 = MaxPooling2D(**pooling_kwargs)(conv3)
+    
+    conv4 = Conv2D(512, kernel_size, **conv_kwargs)(pool3)
+    conv4 = Dropout(rate=drop_rate)(conv4)
+    conv4 = Conv2D(512, kernel_size, **conv_kwargs)(conv4)
+    conv4 = Dropout(rate=drop_rate)(conv4)
+    pool4 = MaxPooling2D(**pooling_kwargs)(conv4)
+    
+    # Bottleneck
+    conv5 = Conv2D(1024, kernel_size, **conv_kwargs)(pool4)
+    conv5 = Dropout(rate=drop_rate)(conv5)
+    conv5 = Conv2D(1024, kernel_size, **conv_kwargs)(conv5)
+    conv5 = Dropout(rate=drop_rate)(conv5)
+    
+    # Decoder
+    up6 = UpSampling2D(size = (2, 2))(conv5)
+    up6 = Conv2D(512, kernel_size, **conv_kwargs)(up6)
+    up6 = Dropout(rate=drop_rate)(up6)
+    merge6 = concatenate([conv4, up6], axis = 3)
+    conv6 = Conv2D(512, kernel_size, **conv_kwargs)(merge6)
+    conv6 = Dropout(rate=drop_rate)(conv6)
+    
+    up7 = UpSampling2D(size = (2, 2))(conv6)
+    up7 = Conv2D(256, kernel_size, **conv_kwargs)(up7)
+    up7 = Dropout(rate=drop_rate)(up7)
+    merge7 = concatenate([conv3, up7], axis = 3)
+    conv7 = Conv2D(256, kernel_size, **conv_kwargs)(merge7)
+    conv7 = Dropout(rate=drop_rate)(conv7)
+    
+    up8 = UpSampling2D(size = (2, 2))(conv7)
+    up8 = Conv2D(128, kernel_size, **conv_kwargs)(up8)
+    up8 = Dropout(rate=drop_rate)(up8)
+    merge8 = concatenate([conv2, up8], axis = 3)
+    conv8 = Conv2D(128, kernel_size, **conv_kwargs)(merge8)
+    conv8 = Dropout(rate=drop_rate)(conv8)
+    
+    up9 = UpSampling2D(size = (2, 2))(conv8)
+    up9 = Conv2D(64, kernel_size, **conv_kwargs)(up9)
+    up9 = Dropout(rate=drop_rate)(up9)
+    merge9 = concatenate([conv1, up9], axis = 3)
+    conv9 = Conv2D(64, kernel_size, **conv_kwargs)(merge9)
+    conv9 = Dropout(rate=drop_rate)(conv9)
+    conv9 = Conv2D(64, kernel_size, **conv_kwargs_fin)(conv9)
+    conv9 = Dropout(rate=drop_rate)(conv9)
+    
+    # Correct dimensions
+    conv9 = Conv2D(num_classes, 1, **conv_kwargs_fin)(conv9)
+    activation = Softmax()(conv9)
+    
+    unet = Model(inputs=inputs, outputs=activation)
+    unet.compile(optimizer=Adam(lr=lr), loss=loss, metrics=metrics)
+    return unet
 
 print('Finished')
 print_memory_use()
