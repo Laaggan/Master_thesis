@@ -7,18 +7,17 @@ import tensorflow as tf
 
 def dice(y_true, y_pred):
     # computes the dice score on two tensors
-    sum_p = K.sum(y_pred)
-    sum_r = K.sum(y_true)
-    sum_pr = K.sum(y_true * y_pred)
-    dice_numerator = 2 * sum_pr
-    dice_denominator = sum_r + sum_p
+    sum_p = K.sum(y_pred, axis=0)
+    sum_r = K.sum(y_true, axis=0)
+    sum_pr = K.sum(y_true * y_pred, axis=0)
+    dice_numerator = 2 * K.sum(sum_pr)
+    dice_denominator = K.sum(sum_r + sum_p)
     dice_score = (dice_numerator + K.epsilon()) / (dice_denominator + K.epsilon())
     return dice_score
 
 
 def dice_whole_metric(y_true, y_pred):
     # computes the dice for the whole tumor
-
     y_true_f = K.reshape(y_true, shape=(-1, 4))
     y_pred_f = K.reshape(y_pred, shape=(-1, 4))
     y_whole = K.sum(y_true_f[:, 1:], axis=1)
@@ -29,7 +28,6 @@ def dice_whole_metric(y_true, y_pred):
 
 def dice_en_metric(y_true, y_pred):
     # computes the dice for the enhancing region
-
     y_true_f = K.reshape(y_true, shape=(-1, 4))
     y_pred_f = K.reshape(y_pred, shape=(-1, 4))
     y_enh = y_true_f[:, -1]
@@ -40,7 +38,6 @@ def dice_en_metric(y_true, y_pred):
 
 def dice_core_metric(y_true, y_pred):
     ##computes the dice for the core region
-
     y_true_f = K.reshape(y_true, shape=(-1, 4))
     y_pred_f = K.reshape(y_pred, shape=(-1, 4))
 

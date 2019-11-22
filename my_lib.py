@@ -87,7 +87,7 @@ def OHE1(Y, mapping):
     return one_hot_enc
 
 def OHE_uncoding(y, mapping):
-    result = np.argmax(y, axis=2)
+    result = np.argmax(y, axis=-1)
     labels = mapping.keys()
     temp = np.zeros(result.shape)
     for i, label in enumerate(labels):
@@ -173,6 +173,66 @@ class CallbackJSON(Callback):
         # Save new config file
         with open(self.config_path, "w") as f:
             f.write(json.dumps(self.config))
+
+def load_slices_from_numpy():
+    # Loading of patients
+    data = np.load('patients-0-99.npz')
+    X1 = data['arr_0'][0]
+    Y1 = data['arr_0'][1]
+    del data
+    data = np.load('patients-100-210.npz')
+    X2 = data['arr_0'][0]
+    Y2 = data['arr_0'][1]
+    del data
+    data = np.load('patients-210-335.npz')
+    X3 = data['arr_0'][0]
+    Y3 = data['arr_0'][1]
+
+    X = np.concatenate((X1, X2, X3), axis=0)
+    Y = np.concatenate((Y1, Y2, Y3), axis=0)
+
+    del X1, X2, X3
+    del Y1, Y2, Y3
+
+    # Shuffle data to mix HGG and LGG
+    num_slices = X.shape[0]
+    rand_perm = np.arange(0, num_slices)
+    np.random.seed(68)
+    np.random.shuffle(rand_perm)
+
+    X = X[rand_perm, :, :, :]
+    Y = Y[rand_perm, :, :, :]
+    return X, Y
+
+def load_slices_from_numpy_test():
+    # Loading of patients
+    data = np.load('test1.npz')
+    X1 = data['arr_0'][0]
+    Y1 = data['arr_0'][1]
+    del data
+    data = np.load('test2.npz')
+    X2 = data['arr_0'][0]
+    Y2 = data['arr_0'][1]
+    del data
+
+    X = np.concatenate((X1, X2), axis=0)
+    Y = np.concatenate((Y1, Y2), axis=0)
+
+    del X1, X2
+    del Y1, Y2
+
+    '''
+    # Shuffle data to mix HGG and LGG
+    # fixme: this mixes up patients which is not OK
+    num_slices = X.shape[0]
+    rand_perm = np.arange(0, num_slices)
+    np.random.seed(68)
+    np.random.shuffle(rand_perm)
+
+    X = X[rand_perm, :, :, :]
+    Y = Y[rand_perm, :, :, :]
+    '''
+    return X, Y
 
 def load_patients_new_again(i, j, modalities, slices=None, base_path=""):
     # Modalities 't1', 't1ce', 't2', 'flair'

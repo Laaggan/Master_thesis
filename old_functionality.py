@@ -83,7 +83,7 @@ def plot_modalities(x):
 
 def plot_OHE(y):
     # Make sure input data is of correct shape
-    assert y.shape == (240, 240, 4), 'Shape of input data is incorrect'
+    #assert y.shape == (240, 240, 4), 'Shape of input data is incorrect'
     plt.subplot('221')
     plt.imshow(y[:, :, 0])
     plt.axis('off')
