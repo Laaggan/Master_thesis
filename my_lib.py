@@ -706,8 +706,8 @@ def unet_dong_et_al(input_size, num_classes, lr, metrics, pretrained_weights):
     # Correct dimensions
     conv9 = Conv2D(num_classes, 1, **conv_kwargs_fin)(conv9)
     activation = Softmax()(conv9)
+    unet = Model(activation)
 
-    # model.compile(optimizer=Adam(lr=learning_rate), loss='categorical_crossentropy', metrics=metrics)
     unet.compile(optimizer=Adam(lr=lr), loss='categorical_crossentropy', metrics=metrics)
     if (pretrained_weights):
         unet.load_weights(pretrained_weights)
