@@ -615,7 +615,7 @@ def unet(input_size, num_classes, pretrained_weights=None,
     return model
 
 
-def unet_dong_et_al(input_size, num_classes):
+def unet_dong_et_al(input_size, num_classes, lr, metrics, pretrained_weights):
     kernel_size = 3
     drop_rate = 0.2
     conv_kwargs = {
@@ -707,9 +707,11 @@ def unet_dong_et_al(input_size, num_classes):
     conv9 = Conv2D(num_classes, 1, **conv_kwargs_fin)(conv9)
     activation = Softmax()(conv9)
 
-    unet = Model(inputs=inputs, outputs=activation)
+    # model.compile(optimizer=Adam(lr=learning_rate), loss='categorical_crossentropy', metrics=metrics)
+    unet.compile(optimizer=Adam(lr=lr), loss='categorical_crossentropy', metrics=metrics)
+    if (pretrained_weights):
+        unet.load_weights(pretrained_weights)
     return unet
-
 
 print('Finished')
 print_memory_use()
