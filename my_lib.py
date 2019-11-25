@@ -193,7 +193,7 @@ def load_slices_from_numpy():
 
     del X1, X2, X3
     del Y1, Y2, Y3
-
+    '''
     # Shuffle data to mix HGG and LGG
     num_slices = X.shape[0]
     rand_perm = np.arange(0, num_slices)
@@ -202,6 +202,7 @@ def load_slices_from_numpy():
 
     X = X[rand_perm, :, :, :]
     Y = Y[rand_perm, :, :, :]
+    '''
     return X, Y
 
 def load_slices_from_numpy_test():
@@ -613,28 +614,31 @@ def unet(input_size, num_classes, pretrained_weights=None,
         model.load_weights(pretrained_weights)
     return model
 
-def unet_dong_et_al(input_size, num_classes, drop_rate, lr, loss, metrics):
-    # Code based on paper:
-    # https://arxiv.org/pdf/1705.03820.pdf
+
+def unet_dong_et_al(input_size, num_classes):
     kernel_size = 3
+    drop_rate = 0.2
     conv_kwargs = {
-        'strides':(1, 1), 
-        'padding': 'same', 
-        'activation':'relu', 
-        'kernel_initializer':random_normal(stddev=0.01),
-        # Why we do activity regularising:
-        # https://stackoverflow.com/questions/44495698/keras-difference-between-kernel-and-activity-regularizers
-        'activity_regularizer':l1_l2()
+        'strides': (1, 1),
+        'padding': 'same',
+        'activation': 'relu',
+        'kernel_initializer': random_normal(stddev=0.01),
+        'activity_regularizer': l1_l2()
+    }
+    conv_transpose_kwargs = {
+        'strides': (2, 2),
+        'kernel_initializer': random_normal(stddev=0.01),
+        'activity_regularizer': l1_l2()
     }
     conv_kwargs_fin = {
-        'strides':(1, 1), 
-        'padding': 'same', 
-        'activation':'relu', 
-        'kernel_initializer':random_normal(stddev=0.01)
+        'strides': (1, 1),
+        'padding': 'same',
+        'activation': 'relu',
+        'kernel_initializer': random_normal(stddev=0.01)
     }
     pooling_kwargs = {
-        'pool_size':(2,2),
-        'padding':'valid'
+        'pool_size': (2, 2),
+        'padding': 'valid'
     }
 
     # Encoder
@@ -644,69 +648,68 @@ def unet_dong_et_al(input_size, num_classes, drop_rate, lr, loss, metrics):
     conv1 = Conv2D(64, kernel_size, name='conv12', **conv_kwargs)(conv1)
     conv1 = Dropout(rate=drop_rate, name='drop12')(conv1)
     pool1 = MaxPooling2D(name='pool1', **pooling_kwargs)(conv1)
-    
+
     conv2 = Conv2D(128, kernel_size, name='conv21', **conv_kwargs)(pool1)
     conv2 = Dropout(rate=drop_rate, name='drop21')(conv2)
     conv2 = Conv2D(128, kernel_size, name='conv22', **conv_kwargs)(conv2)
     conv2 = Dropout(rate=drop_rate, name='drop22')(conv2)
     pool2 = MaxPooling2D(**pooling_kwargs, name='pool2')(conv2)
-    
+
     conv3 = Conv2D(256, kernel_size, **conv_kwargs)(pool2)
     conv3 = Dropout(rate=drop_rate)(conv3)
     conv3 = Conv2D(256, kernel_size, **conv_kwargs)(conv3)
     conv3 = Dropout(rate=drop_rate)(conv3)
     pool3 = MaxPooling2D(**pooling_kwargs)(conv3)
-    
+
     conv4 = Conv2D(512, kernel_size, **conv_kwargs)(pool3)
     conv4 = Dropout(rate=drop_rate)(conv4)
     conv4 = Conv2D(512, kernel_size, **conv_kwargs)(conv4)
     conv4 = Dropout(rate=drop_rate)(conv4)
     pool4 = MaxPooling2D(**pooling_kwargs)(conv4)
-    
+
     # Bottleneck
     conv5 = Conv2D(1024, kernel_size, **conv_kwargs)(pool4)
     conv5 = Dropout(rate=drop_rate)(conv5)
     conv5 = Conv2D(1024, kernel_size, **conv_kwargs)(conv5)
     conv5 = Dropout(rate=drop_rate)(conv5)
-    
+
     # Decoder
-    up6 = UpSampling2D(size = (2, 2))(conv5)
-    up6 = Conv2D(512, kernel_size, **conv_kwargs)(up6)
-    up6 = Dropout(rate=drop_rate)(up6)
-    merge6 = concatenate([conv4, up6], axis = 3)
+
+    up6 = Conv2DTranspose(512, (2, 2), **conv_transpose_kwargs)(conv5)
+    merge6 = concatenate([conv4, up6], axis=3)
     conv6 = Conv2D(512, kernel_size, **conv_kwargs)(merge6)
     conv6 = Dropout(rate=drop_rate)(conv6)
-    
-    up7 = UpSampling2D(size = (2, 2))(conv6)
-    up7 = Conv2D(256, kernel_size, **conv_kwargs)(up7)
-    up7 = Dropout(rate=drop_rate)(up7)
-    merge7 = concatenate([conv3, up7], axis = 3)
+    conv6 = Conv2D(512, kernel_size, **conv_kwargs)(conv6)
+    conv6 = Dropout(rate=drop_rate)(conv6)
+
+    up7 = Conv2DTranspose(512, (2, 2), **conv_transpose_kwargs)(conv6)
+    merge7 = concatenate([conv3, up7], axis=3)
     conv7 = Conv2D(256, kernel_size, **conv_kwargs)(merge7)
     conv7 = Dropout(rate=drop_rate)(conv7)
-    
-    up8 = UpSampling2D(size = (2, 2))(conv7)
+    conv7 = Conv2D(256, kernel_size, **conv_kwargs)(conv7)
+    conv7 = Dropout(rate=drop_rate)(conv7)
+
+    up8 = Conv2DTranspose(512, (2, 2), **conv_transpose_kwargs)(conv7)
+    merge8 = concatenate([conv2, up8], axis=3)
     up8 = Conv2D(128, kernel_size, **conv_kwargs)(up8)
     up8 = Dropout(rate=drop_rate)(up8)
-    merge8 = concatenate([conv2, up8], axis = 3)
     conv8 = Conv2D(128, kernel_size, **conv_kwargs)(merge8)
     conv8 = Dropout(rate=drop_rate)(conv8)
-    
-    up9 = UpSampling2D(size = (2, 2))(conv8)
-    up9 = Conv2D(64, kernel_size, **conv_kwargs)(up9)
-    up9 = Dropout(rate=drop_rate)(up9)
-    merge9 = concatenate([conv1, up9], axis = 3)
+
+    up9 = Conv2DTranspose(512, (2, 2), **conv_transpose_kwargs)(conv8)
+    merge9 = concatenate([conv1, up9], axis=3)
     conv9 = Conv2D(64, kernel_size, **conv_kwargs)(merge9)
     conv9 = Dropout(rate=drop_rate)(conv9)
     conv9 = Conv2D(64, kernel_size, **conv_kwargs_fin)(conv9)
     conv9 = Dropout(rate=drop_rate)(conv9)
-    
+
     # Correct dimensions
     conv9 = Conv2D(num_classes, 1, **conv_kwargs_fin)(conv9)
     activation = Softmax()(conv9)
-    
+
     unet = Model(inputs=inputs, outputs=activation)
-    unet.compile(optimizer=Adam(lr=lr), loss=loss, metrics=metrics)
     return unet
+
 
 print('Finished')
 print_memory_use()
