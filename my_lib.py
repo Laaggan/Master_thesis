@@ -691,9 +691,9 @@ def unet_dong_et_al(input_size, num_classes, lr, metrics, pretrained_weights):
 
     up8 = Conv2DTranspose(512, (2, 2), **conv_transpose_kwargs)(conv7)
     merge8 = concatenate([conv2, up8], axis=3)
-    up8 = Conv2D(128, kernel_size, **conv_kwargs)(up8)
-    up8 = Dropout(rate=drop_rate)(up8)
     conv8 = Conv2D(128, kernel_size, **conv_kwargs)(merge8)
+    conv8 = Dropout(rate=drop_rate)(conv8)
+    conv8 = Conv2D(128, kernel_size, **conv_kwargs)(conv8)
     conv8 = Dropout(rate=drop_rate)(conv8)
 
     up9 = Conv2DTranspose(512, (2, 2), **conv_transpose_kwargs)(conv8)
