@@ -1,6 +1,6 @@
 from my_lib import *
 from metrics import *
-from lee_unet import lee_unet
+from keras import initializers
 import datetime
 import pickle
 from keras.callbacks import ModelCheckpoint, EarlyStopping, TensorBoard
@@ -44,3 +44,7 @@ for lr in lrs:
                        steps_per_epoch=None,
                        validation_steps=None,
                        validation_freq=1)
+
+    # Might as well save this object
+    with open('HistoryDict_' + modalities[0] + '_' + str(lr), 'wb') as file_pi:
+        pickle.dump(history.history, file_pi)
