@@ -18,6 +18,7 @@ from keras.callbacks import Callback
 from keras.models import *
 from keras.layers import *
 from keras.optimizers import *
+import keras.initializers as initializers
 from keras import backend as K
 from keras.callbacks import ModelCheckpoint
 from keras.initializers import random_normal

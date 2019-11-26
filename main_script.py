@@ -8,7 +8,7 @@ from keras.callbacks import ModelCheckpoint, EarlyStopping, TensorBoard
 modalities = ['t1ce']
 lrs = [1e-4]
 H, W = 240, 240
-input_size = (H, W, len(modalities))
+input_size = (H, W, 4)
 n = 2
 ind = np.arange(0, n)
 X_train, Y_train = load_patients_numpy(path_to_folder='data_numpy_separate_patients_original_size', indices=ind)
@@ -23,7 +23,7 @@ for lr in lrs:
     tbc = TensorBoard(log_dir=log_dir, histogram_freq=1)
 
     metrics = [dice, dice_whole_metric, dice_en_metric, dice_core_metric]
-    unet = lee_unet(lr=1e-4, input_size=(H, W, 4))
+    unet = lee_unet(input_size=input_size, num_classes=4, lr=1e-4, loss='categorical_crossentropy', metrics=metrics)
 
     X_train = X_train.reshape(-1, H, W, 4)
     Y_train = Y_train.reshape(-1, H, W, 4)
