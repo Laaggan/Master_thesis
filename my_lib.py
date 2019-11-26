@@ -95,43 +95,6 @@ def OHE_uncoding(y, mapping):
         temp[ind] = label
     return temp
 
-def dice_coefficient(y_true, y_pred):
-    y_true_f = K.flatten(y_true[:, 0])
-    y_pred_f = K.flatten(y_pred[:, 0])
-    intersection = K.sum(K.abs(y_true_f * y_pred_f), axis=-1)
-    return (2. * intersection) / (
-        K.sum(K.square(y_true_f), -1) + K.sum(K.square(y_pred_f), -1) + 1e-8)
-
-#dice_coef new added 15/11
-def dice_coef(y_true, y_pred, smooth=1):
-  intersection = K.sum(y_true * y_pred, axis=[-1])
-  union = K.sum(y_true, axis=[2]) + K.sum(y_pred, axis=[-1])
-  dice = K.mean((2. * intersection + smooth)/(union + smooth), axis=0)
-  return dice
-
-
-#meanIoU-added 14/11
-def mean_iou(y_true, y_pred):
-    NUM_CLASSES = 4
-    score, up_opt = tf.compat.v1.metrics.mean_iou(y_true, y_pred, NUM_CLASSES)
-    #score, up_opt = mean_iou(y_true, y_pred)
-    K.get_session().run(tf.local_variables_initializer())
-    with tf.control_dependencies([up_opt]):
-        score = tf.identity(score)
-    return score
-'''
-
-def mean_iou(y_true, y_pred):
-    y_pred = K.one_hot(K.argmax(y_pred, axis=-1), num_classes=4)
-    inter = K.sum(K.sum(y_true * y_pred, axis=2), axis=1)
-    union = K.sum(K.sum(y_true + y_pred, axis=2), axis=1) - inter
-    return K.mean((inter + K.epsilon()) / (union + K.epsilon()))
-'''
-def IoU(y_true, y_pred):
-    intersection = K.sum(y_true[:, 0]*y_pred[:, 0])
-    sum_ = K.sum(K.abs(y_true[:, 0]) + K.abs(y_pred[:, 0]))
-    return intersection/sum_
-
 def reset_config(config, config_path=None, weights_path=None):
     new_config = config
     if weights_path:
@@ -174,85 +137,43 @@ class CallbackJSON(Callback):
         with open(self.config_path, "w") as f:
             f.write(json.dumps(self.config))
 
-def load_slices_from_numpy():
-    # Loading of patients
-    data = np.load('patients-0-99.npz')
-    X1 = data['arr_0'][0]
-    Y1 = data['arr_0'][1]
-    del data
-    data = np.load('patients-100-210.npz')
-    X2 = data['arr_0'][0]
-    Y2 = data['arr_0'][1]
-    del data
-    data = np.load('patients-210-335.npz')
-    X3 = data['arr_0'][0]
-    Y3 = data['arr_0'][1]
-
-    X = np.concatenate((X1, X2, X3), axis=0)
-    Y = np.concatenate((Y1, Y2, Y3), axis=0)
-
-    del X1, X2, X3
-    del Y1, Y2, Y3
+def load_patients_numpy(path_to_folder, indices, cropping=False):
     '''
-    # Shuffle data to mix HGG and LGG
-    num_slices = X.shape[0]
-    rand_perm = np.arange(0, num_slices)
-    np.random.seed(68)
-    np.random.shuffle(rand_perm)
-
-    X = X[rand_perm, :, :, :]
-    Y = Y[rand_perm, :, :, :]
+    :param path_to_folder: The path to the folder which contain the patients saved one by one in .npz format
+    :param indices: A list with the indices, range [0, 335], which one wants to load to memory
+    :return: returns one numpy array with training data and one numpy array with the corresponding one hot
+    encoded labels.
     '''
-    return X, Y
+    start = True
+    for i in indices:
+        if start:
+            data = np.load(path_to_folder + '/patient-' + str(i) + '.npz')
+            X = data['arr_0'][0]
+            Y = data['arr_0'][1]
+            start = False
+        else:
+            data = np.load(path_to_folder + '/patient-' + str(i) + '.npz')
+            temp_X = data['arr_0'][0]
+            temp_Y = data['arr_0'][1]
+            X = np.concatenate((X, temp_X), axis=0)
+            Y = np.concatenate((Y, temp_Y), axis=0)
 
-def load_slices_from_numpy_test():
-    # Loading of patients
-    data = np.load('test1.npz')
-    X1 = data['arr_0'][0]
-    Y1 = data['arr_0'][1]
-    del data
-    data = np.load('test2.npz')
-    X2 = data['arr_0'][0]
-    Y2 = data['arr_0'][1]
-    del data
+    if cropping:
+        y_up = 40
+        y_down = 216
+        x_left = 40
+        x_right = 216
+        H = y_down - y_up
+        W = x_right - x_left
 
-    X = np.concatenate((X1, X2), axis=0)
-    Y = np.concatenate((Y1, Y2), axis=0)
+        X = X[:, x_left:x_right, y_up:y_down, :]
+        Y = Y[:, x_left:x_right, y_up:y_down, :]
 
-    del X1, X2
-    del Y1, Y2
-
-    '''
-    # Shuffle data to mix HGG and LGG
-    # fixme: this mixes up patients which is not OK
-    num_slices = X.shape[0]
-    rand_perm = np.arange(0, num_slices)
-    np.random.seed(68)
-    np.random.shuffle(rand_perm)
-
-    X = X[rand_perm, :, :, :]
-    Y = Y[rand_perm, :, :, :]
-    '''
     return X, Y
 
 def load_patients_new_again(i, j, modalities, slices=None, base_path=""):
     # Modalities 't1', 't1ce', 't2', 'flair'
     assert j >= i, 'j>i has to be true, you have given an invalid range of patients.'
-    '''
-    assert type(modalities) == type([ 't1', 't1ce', 't2', 'flair']), 'Modalities argument must be a list'
-    path = base_path + "MICCAI_BraTS_2019_Data_Training/*/*/*"
-    wild_gt = base_path + "MICCAI_BraTS_2019_Data_Training/*/*/*_seg.nii.gz"
-
-    wild_paths = []
-    for modality in modalities:
-        temp = path + "_" + modality + ".nii.gz"
-        wild_paths.append(temp)
-
-    modality_paths = []
-    for wild_path in wild_paths:
-        temp = glob.glob(wild_path)
-        modality_paths.append(temp)
-    '''
     n = len(modalities)
     '''
     # What Carl's algorithm output
@@ -355,7 +276,98 @@ def load_patients_new_again(i, j, modalities, slices=None, base_path=""):
         if temp == 't2':
             return_image_data[:, :, :, i] = image_data[:, :, :, 2]
         if temp == 'flair':
+            return_image_data[:, :, :, i] = image_data[:, :, :, 3]
+
+    return (return_image_data, OHE_labels, labels)
+
+def load_patients_new_again_without_cropping(i, j, modalities, slices=None, base_path=""):
+    # Modalities 't1', 't1ce', 't2', 'flair'
+    assert j >= i, 'j>i has to be true, you have given an invalid range of patients.'
+    n = len(modalities)
+
+    path = base_path + "MICCAI_BraTS_2019_Data_Training/*/*/*"
+
+    wild_t1 = path + "_t1.nii.gz"
+    wild_t1ce = path + "_t1ce.nii.gz"
+    wild_t2 = path + "_t2.nii.gz"
+    wild_flair = path + "_flair.nii.gz"
+    wild_gt = path + "_seg.nii.gz"
+
+    t1_paths = glob.glob(wild_t1)
+    t1ce_paths = glob.glob(wild_t1ce)
+    t2_paths = glob.glob(wild_t2)
+    flair_paths = glob.glob(wild_flair)
+    gt_paths = glob.glob(wild_gt)
+
+    H = 240
+    W = 240
+    num_non_empty_slices = 0
+
+    for x in range(i, j):
+        for y in slices[str(x)]:
+            num_non_empty_slices += 1
+
+    image_data = np.zeros((4, W, H, num_non_empty_slices))
+    labels = np.zeros((num_non_empty_slices, W, H))
+    OHE_labels = np.zeros((num_non_empty_slices, W, H, 4))
+    next_ind = 0
+
+    for i in range(i, j):
+        print('Patient: ' + str(i))
+        curr_ind = slices[str(i)]
+
+        path_t1 = t1_paths[i]
+        path_t1ce = t1ce_paths[i]
+        path_t2 = t2_paths[i]
+        path_flair = flair_paths[i]
+        path_gt = gt_paths[i]
+
+        img_t1 = nib.load(path_t1)
+        img_t1ce = nib.load(path_t1ce)
+        img_t2 = nib.load(path_t2)
+        img_flair = nib.load(path_flair)
+        img_gt = nib.load(path_gt)
+
+        img_t1 = img_t1.get_fdata()
+        img_t1ce = img_t1ce.get_fdata()
+        img_t2 = img_t2.get_fdata()
+        img_flair = img_flair.get_fdata()
+        img_gt = img_gt.get_fdata()
+
+        temp = 0
+        for i, x in enumerate(curr_ind):
+            image_data[0, :, :, next_ind + i] = img_t1[:, :, x]
+            image_data[1, :, :, next_ind + i] = img_t1ce[:, :, x]
+            image_data[2, :, :, next_ind + i] = img_t2[:, :, x]
+            image_data[3, :, :, next_ind + i] = img_flair[:, :, x]
+            labels[next_ind + i, :, :] = img_gt[:, :, x]
+            temp += 1
+        next_ind += temp
+
+    for j in range(next_ind):
+        # shift and scale data
+        image_data[0, :, :, j] = normalize(image_data[0, :, :, j])
+        image_data[1, :, :, j] = normalize(image_data[1, :, :, j])
+        image_data[2, :, :, j] = normalize(image_data[2, :, :, j])
+        image_data[3, :, :, j] = normalize(image_data[3, :, :, j])
+
+        OHE_labels[j, :, :, :] = OHE1(labels[j, :, :], mapping)
+
+    # The last axis will become the first axis
+    image_data = np.moveaxis(image_data, -1, 0)
+    image_data = np.moveaxis(image_data, 1, 3)
+
+    return_image_data = np.zeros((num_non_empty_slices, W, H, n))
+    for i in range(n):
+        temp = modalities[i]
+        if temp == 't1':
+            return_image_data[:, :, :, i] = image_data[:, :, :, 0]
+        if temp == 't1ce':
+            return_image_data[:, :, :, i] = image_data[:, :, :, 1]
+        if temp == 't2':
             return_image_data[:, :, :, i] = image_data[:, :, :, 2]
+        if temp == 'flair':
+            return_image_data[:, :, :, i] = image_data[:, :, :, 3]
 
     return (return_image_data, OHE_labels, labels)
 
@@ -553,7 +565,7 @@ def unet_depth(pretrained_weights = None, input_size = (256, 256, 1), num_classe
     return model
 
 def unet(input_size, num_classes, pretrained_weights=None,
-         learning_rate=1e-4, drop_rate=0.5, metrics=[dice_coefficient]):
+         learning_rate=1e-4, drop_rate=0.5, metrics=None):
     inputs = Input(input_size, name='my_placeholder', dtype='float32')
     conv1 = Conv2D(64, 3, activation='relu', padding='same', kernel_initializer='he_normal')(inputs)
     conv1 = Conv2D(64, 3, activation='relu', padding='same', kernel_initializer='he_normal')(conv1)
@@ -607,15 +619,13 @@ def unet(input_size, num_classes, pretrained_weights=None,
     activation = Softmax(axis=-1)(reshape)
 
     model = Model(inputs=[inputs], outputs=[activation])
-    sgd = SGD(lr=learning_rate, decay=1e-6, momentum=0.9, nesterov=True)
-    #model.compile(optimizer=Adam(lr=learning_rate), loss='categorical_crossentropy', metrics=metrics)
-    model.compile(optimizer=sgd, loss='categorical_crossentropy', metrics=metrics)
+    model.compile(optimizer=Adam(lr=learning_rate), loss='categorical_crossentropy', metrics=metrics)
     if (pretrained_weights):
         model.load_weights(pretrained_weights)
     return model
 
 
-def unet_dong_et_al(input_size, num_classes, lr, metrics, pretrained_weights):
+def unet_dong_et_al(input_size, num_classes, lr, metrics, drop_rate, loss, pretrained_weights=None):
     kernel_size = 3
     drop_rate = 0.2
     conv_kwargs = {
@@ -674,7 +684,6 @@ def unet_dong_et_al(input_size, num_classes, lr, metrics, pretrained_weights):
     conv5 = Dropout(rate=drop_rate)(conv5)
 
     # Decoder
-
     up6 = Conv2DTranspose(512, (2, 2), **conv_transpose_kwargs)(conv5)
     merge6 = concatenate([conv4, up6], axis=3)
     conv6 = Conv2D(512, kernel_size, **conv_kwargs)(merge6)
@@ -682,21 +691,21 @@ def unet_dong_et_al(input_size, num_classes, lr, metrics, pretrained_weights):
     conv6 = Conv2D(512, kernel_size, **conv_kwargs)(conv6)
     conv6 = Dropout(rate=drop_rate)(conv6)
 
-    up7 = Conv2DTranspose(512, (2, 2), **conv_transpose_kwargs)(conv6)
+    up7 = Conv2DTranspose(256, (2, 2), **conv_transpose_kwargs)(conv6)
     merge7 = concatenate([conv3, up7], axis=3)
     conv7 = Conv2D(256, kernel_size, **conv_kwargs)(merge7)
     conv7 = Dropout(rate=drop_rate)(conv7)
     conv7 = Conv2D(256, kernel_size, **conv_kwargs)(conv7)
     conv7 = Dropout(rate=drop_rate)(conv7)
 
-    up8 = Conv2DTranspose(512, (2, 2), **conv_transpose_kwargs)(conv7)
+    up8 = Conv2DTranspose(128, (2, 2), **conv_transpose_kwargs)(conv7)
     merge8 = concatenate([conv2, up8], axis=3)
     conv8 = Conv2D(128, kernel_size, **conv_kwargs)(merge8)
     conv8 = Dropout(rate=drop_rate)(conv8)
     conv8 = Conv2D(128, kernel_size, **conv_kwargs)(conv8)
     conv8 = Dropout(rate=drop_rate)(conv8)
 
-    up9 = Conv2DTranspose(512, (2, 2), **conv_transpose_kwargs)(conv8)
+    up9 = Conv2DTranspose(64, (2, 2), **conv_transpose_kwargs)(conv8)
     merge9 = concatenate([conv1, up9], axis=3)
     conv9 = Conv2D(64, kernel_size, **conv_kwargs)(merge9)
     conv9 = Dropout(rate=drop_rate)(conv9)
@@ -708,7 +717,7 @@ def unet_dong_et_al(input_size, num_classes, lr, metrics, pretrained_weights):
     activation = Softmax()(conv9)
     unet = Model(inputs=[inputs], outputs=[activation])
 
-    unet.compile(optimizer=Adam(lr=lr), loss='categorical_crossentropy', metrics=metrics)
+    unet.compile(optimizer=Adam(lr=lr), loss=loss, metrics=metrics)
     if (pretrained_weights):
         unet.load_weights(pretrained_weights)
     return unet

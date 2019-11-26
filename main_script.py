@@ -1,25 +1,17 @@
 from my_lib import *
 from metrics import *
+from lee_unet import lee_unet
 import datetime
 import pickle
 from keras.callbacks import ModelCheckpoint, EarlyStopping, TensorBoard
 
 modalities = ['t1ce']
 lrs = [1e-4]
-input_size = (176, 176, len(modalities))
-
-X, Y = load_slices_from_numpy_test()
-
-# Splitting into training and testing
-num_slices = X.shape[0]
-#ind1 = int(np.floor(num_slices*0.7))
-ind2 = int(np.floor(num_slices*(0.7+0.15)))
-#ind3 = int(num_slices - 1)
-X_train = X[0:ind2, :, :, 1]
-#X_test = X[(ind2+1):ind3, :, :, :]
-Y_train = Y[0:ind2, :, :, :]
-#Y_test = Y[(ind2+1):ind3, :, :, :]
-del X, Y
+H, W = 240, 240
+input_size = (H, W, len(modalities))
+n = 2
+ind = np.arange(0, n)
+X_train, Y_train = load_patients_numpy(path_to_folder='data_numpy_separate_patients_original_size', indices=ind)
 
 for lr in lrs:
     # Where to save logs and weights
@@ -31,11 +23,10 @@ for lr in lrs:
     tbc = TensorBoard(log_dir=log_dir, histogram_freq=1)
 
     metrics = [dice, dice_whole_metric, dice_en_metric, dice_core_metric]
-    unet = unet_dong_et_al(input_size=input_size, num_classes=4, lr=lr, drop_rate=0.2, metrics=metrics,
-                           loss='categorical_crossentropy')
+    unet = lee_unet(lr=1e-4, input_size=(H, W, 4))
 
-    X_train = X_train.reshape(-1, 176, 176, 1)
-    Y_train = Y_train.reshape(-1, 176, 176, 4)
+    X_train = X_train.reshape(-1, H, W, 4)
+    Y_train = Y_train.reshape(-1, H, W, 4)
     #validation_data = (X_val.reshape(-1, 176, 176, 1), Y_val.reshape(-1, 176, 176, 4))
 
     history = unet.fit(x=X_train,
@@ -53,7 +44,3 @@ for lr in lrs:
                        steps_per_epoch=None,
                        validation_steps=None,
                        validation_freq=1)
-
-    # Might as well save this object
-    with open('HistoryDict_' + modalities[0] + '_' + str(lr), 'wb') as file_pi:
-        pickle.dump(history.history, file_pi)
