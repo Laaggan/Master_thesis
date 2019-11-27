@@ -146,7 +146,10 @@ def load_patients_numpy(path_to_folder, indices, cropping=False):
     encoded labels.
     '''
     start = True
-    for i in indices:
+    for count, i in enumerate(indices):
+        if count % 25 == 0:
+            print('Patient:', count)
+
         if start:
             data = np.load(path_to_folder + '/patient-' + str(i) + '.npz')
             X = data['arr_0'][0]
@@ -628,18 +631,18 @@ def unet(input_size, num_classes, pretrained_weights=None,
 
 def unet_dong_et_al(input_size, num_classes, lr, metrics, drop_rate, loss, pretrained_weights=None):
     kernel_size = 3
-    drop_rate = 0.2
+    drop_rate = drop_rate
     conv_kwargs = {
         'strides': (1, 1),
         'padding': 'same',
         'activation': 'relu',
         'kernel_initializer': random_normal(stddev=0.01),
-        'activity_regularizer': l1_l2()
+        #'activity_regularizer': l1_l2()
     }
     conv_transpose_kwargs = {
         'strides': (2, 2),
         'kernel_initializer': random_normal(stddev=0.01),
-        'activity_regularizer': l1_l2()
+        #'activity_regularizer': l1_l2()
     }
     conv_kwargs_fin = {
         'strides': (1, 1),
@@ -654,17 +657,17 @@ def unet_dong_et_al(input_size, num_classes, lr, metrics, drop_rate, loss, pretr
 
     # Encoder
     inputs = Input(input_size)
-    conv1 = Conv2D(64, kernel_size, name='conv11', **conv_kwargs)(inputs)
-    conv1 = Dropout(rate=drop_rate, name='drop11')(conv1)
-    conv1 = Conv2D(64, kernel_size, name='conv12', **conv_kwargs)(conv1)
-    conv1 = Dropout(rate=drop_rate, name='drop12')(conv1)
-    pool1 = MaxPooling2D(name='pool1', **pooling_kwargs)(conv1)
+    conv1 = Conv2D(64, kernel_size, **conv_kwargs)(inputs)
+    conv1 = Dropout(rate=drop_rate)(conv1)
+    conv1 = Conv2D(64, kernel_size, **conv_kwargs)(conv1)
+    conv1 = Dropout(rate=drop_rate)(conv1)
+    pool1 = MaxPooling2D(**pooling_kwargs)(conv1)
 
-    conv2 = Conv2D(128, kernel_size, name='conv21', **conv_kwargs)(pool1)
-    conv2 = Dropout(rate=drop_rate, name='drop21')(conv2)
-    conv2 = Conv2D(128, kernel_size, name='conv22', **conv_kwargs)(conv2)
-    conv2 = Dropout(rate=drop_rate, name='drop22')(conv2)
-    pool2 = MaxPooling2D(**pooling_kwargs, name='pool2')(conv2)
+    conv2 = Conv2D(128, kernel_size, **conv_kwargs)(pool1)
+    conv2 = Dropout(rate=drop_rate, )(conv2)
+    conv2 = Conv2D(128, kernel_size, **conv_kwargs)(conv2)
+    conv2 = Dropout(rate=drop_rate)(conv2)
+    pool2 = MaxPooling2D(**pooling_kwargs)(conv2)
 
     conv3 = Conv2D(256, kernel_size, **conv_kwargs)(pool2)
     conv3 = Dropout(rate=drop_rate)(conv3)
