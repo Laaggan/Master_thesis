@@ -8,14 +8,24 @@ from keras.callbacks import ModelCheckpoint, EarlyStopping, TensorBoard
 modalities = ['t1ce']
 lrs = [1e-4]
 H, W = 176, 176
-input_size = (H, W, 4)
-n = 2
-ind = np.arange(0, n)
-X_train, Y_train = load_patients_numpy(path_to_folder='/data_numpy/data_numpy_separate_patients_original_size', indices=ind, cropping=True)
+input_size = (H, W, 1)
+n = 10
+np.random.seed(42)
+ind = np.arange(n)
+np.random.shuffle(ind)
 
-m = 2
-ind_val = np.arange(n, n+m)
-X_val, Y_val = load_patients_numpy(path_to_folder='/data_numpy/data_numpy_separate_patients_original_size', indices=ind_val, cropping=True)
+ind1 = int(np.ceil(len(ind) * 0.7))
+ind2 = int(np.ceil(len(ind) * 0.85))
+
+train_ind = ind[0:ind1]
+val_ind = ind[ind1:ind2]
+
+X_train, Y_train = load_patients_numpy(path_to_folder='data_numpy/data_numpy_separate_patients_original_size', indices=train_ind, cropping=True)
+X_val, Y_val = load_patients_numpy(path_to_folder='data_numpy/data_numpy_separate_patients_original_size', indices=val_ind, cropping=True)
+
+# Extract modality of interest
+X_train = X_train[:, :, :, 1]
+X_val = X_val[:, :, :, 1]
 
 for lr in lrs:
     # Where to save logs and weights
@@ -24,7 +34,7 @@ for lr in lrs:
     log_dir = "logs/numpy_data_dong_et_al/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + "_" + modalities[0] \
               + '-lr-' + str(lr) + '-n-' + str(X_train.shape[0])
 
-    cp = ModelCheckpoint(weights_path, save_best_only=True, monitor='val_dice', mode='max', verbose=1, period=10)
+    cp = ModelCheckpoint(weights_path, save_best_only=True, monitor='val_dice', mode='max', verbose=1, period=1)
     es = EarlyStopping(monitor='val_loss', mode='auto', verbose=1, patience=10)
     tbc = TensorBoard(log_dir=log_dir, histogram_freq=1)
 
@@ -33,7 +43,7 @@ for lr in lrs:
 
     X_train = X_train.reshape(-1, H, W, 1)
     Y_train = Y_train.reshape(-1, H, W, 4)
-    validation_data = (X_val.reshape(-1, 176, 176, 1), Y_val.reshape(-1, 176, 176, 4))
+    validation_data = (X_val.reshape(-1, H, W, 1), Y_val.reshape(-1, H, W, 4))
 
     history = unet.fit(x=X_train,
                        y=Y_train,
