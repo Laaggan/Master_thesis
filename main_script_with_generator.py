@@ -30,24 +30,34 @@ val_ind = ind[ind1:ind2]
 path_to_data = 'data_numpy_separate_patients_original_size'
 # How many patients will be in each update
 # 2 patients will equal a batch size of ~100
-batch_size = 2
+batch_size = 1
 
+'''
+small_val_ind = np.random.choice(val_ind, 5)
 X_val_raw, Y_val = load_patients_numpy(
     path_to_folder=path_to_data,
-    indices=val_ind,
+    indices=small_val_ind,
     cropping=True
 )
 
 H, W = X_val_raw.shape[1], X_val_raw.shape[2]
+'''
+H, W = 176, 176
 input_size = (H, W, num_modalities)
 
 for mod in modalities:
     # Extract modality of interest
     i = modalities[mod]
-    X_val = X_val_raw[:, :, :, i]
 
     training_batch_generator = Generator(
         indices=train_ind,
+        path_to_folder=path_to_data,
+        modality=i,
+        batch_size=batch_size,
+        cropping=True
+    )
+    validation_batch_generator = Generator(
+        indices=val_ind,
         path_to_folder=path_to_data,
         modality=i,
         batch_size=batch_size,
@@ -67,7 +77,7 @@ for mod in modalities:
     metrics = [dice, dice_whole_metric, dice_en_metric, dice_core_metric]
     unet = lee_unet2(input_size=input_size, num_classes=4, lr=lr, loss='categorical_crossentropy', metrics=metrics)
 
-    validation_data = (X_val.reshape(-1, H, W, num_modalities), Y_val.reshape(-1, H, W, 4))
+    #validation_data = (X_val.reshape(-1, H, W, num_modalities), Y_val.reshape(-1, H, W, 4))
 
     unet.fit_generator(
         generator=training_batch_generator,
@@ -75,5 +85,5 @@ for mod in modalities:
         epochs=100,
         callbacks=[tbc, cp, es],
         verbose=1,
-        validation_data=validation_data
+        validation_data=validation_batch_generator
     )
