@@ -147,18 +147,32 @@ def load_patients_numpy(path_to_folder, indices, cropping=False):
     '''
     start = True
     for count, i in enumerate(indices):
+        '''
         if count % 25 == 0:
             print('Patient:', count)
+        
+        p = np.random.rand
 
+        '''
         if start:
             data = np.load(path_to_folder + '/patient-' + str(i) + '.npz')
             X = data['arr_0'][0]
             Y = data['arr_0'][1]
+            '''
+            if p > 0.5:
+                X = np.flip(X)
+                Y = np.flip(Y)
+            '''
             start = False
         else:
             data = np.load(path_to_folder + '/patient-' + str(i) + '.npz')
             temp_X = data['arr_0'][0]
             temp_Y = data['arr_0'][1]
+            '''
+            if p > 0.5:
+                temp_X = np.flip(temp_X)
+                temp_Y = np.flip(temp_Y)
+            '''
             X = np.concatenate((X, temp_X), axis=0)
             Y = np.concatenate((Y, temp_Y), axis=0)
 
