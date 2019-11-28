@@ -147,6 +147,13 @@ def load_patients_numpy(path_to_folder, indices, cropping=False):
     '''
     start = True
     for count, i in enumerate(indices):
+        y_up = 40
+        y_down = 216
+        x_left = 40
+        x_right = 216
+        H = y_down - y_up
+        W = x_right - x_left
+
         '''
         if count % 25 == 0:
             print('Patient:', count)
@@ -163,6 +170,10 @@ def load_patients_numpy(path_to_folder, indices, cropping=False):
                 X = np.flip(X)
                 Y = np.flip(Y)
             '''
+            if cropping:
+                X = X[:, x_left:x_right, y_up:y_down, :]
+                Y = Y[:, x_left:x_right, y_up:y_down, :]
+
             start = False
         else:
             data = np.load(path_to_folder + '/patient-' + str(i) + '.npz')
@@ -173,19 +184,12 @@ def load_patients_numpy(path_to_folder, indices, cropping=False):
                 temp_X = np.flip(temp_X)
                 temp_Y = np.flip(temp_Y)
             '''
+            if cropping:
+                temp_X = temp_X[:, x_left:x_right, y_up:y_down, :]
+                temp_Y = temp_Y[:, x_left:x_right, y_up:y_down, :]
+
             X = np.concatenate((X, temp_X), axis=0)
             Y = np.concatenate((Y, temp_Y), axis=0)
-
-    if cropping:
-        y_up = 40
-        y_down = 216
-        x_left = 40
-        x_right = 216
-        H = y_down - y_up
-        W = x_right - x_left
-
-        X = X[:, x_left:x_right, y_up:y_down, :]
-        Y = Y[:, x_left:x_right, y_up:y_down, :]
 
     return X, Y
 
