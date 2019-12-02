@@ -39,7 +39,7 @@ for lr in lrs:
     log_dir = "logs/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + "-all" \
               + '-lr-' + str(lr) + '-n-' + str(X_train.shape[0])
 
-    cp = ModelCheckpoint(weights_path, save_best_only=True, monitor='val_loss', mode='max', verbose=1, period=1)
+    cp = ModelCheckpoint(weights_path, save_best_only=True, monitor='val_loss', mode='auto', verbose=1, period=1)
     es = EarlyStopping(monitor='val_loss', mode='auto', verbose=1, patience=10)
     tbc = TensorBoard(log_dir=log_dir)
 
