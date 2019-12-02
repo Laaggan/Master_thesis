@@ -39,11 +39,11 @@ for lr in lrs:
     log_dir = "logs/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + "-all" \
               + '-lr-' + str(lr) + '-n-' + str(X_train.shape[0])
 
-    cp = ModelCheckpoint(weights_path, save_best_only=True, monitor='val_dice', mode='max', verbose=1, period=1)
+    cp = ModelCheckpoint(weights_path, save_best_only=True, monitor='val_loss', mode='max', verbose=1, period=1)
     es = EarlyStopping(monitor='val_loss', mode='auto', verbose=1, patience=10)
     tbc = TensorBoard(log_dir=log_dir)
 
-    metrics = [dice, dice_whole_metric, dice_en_metric, dice_core_metric]
+    metrics = [dice_en_metric, 'accuracy']
     unet = lee_unet2(input_size=input_size, num_classes=4, lr=lr, loss='categorical_crossentropy', metrics=metrics)
 
     X_train = X_train.reshape(-1, H, W, 4)
