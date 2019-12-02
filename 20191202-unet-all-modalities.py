@@ -26,9 +26,6 @@ ind2 = int(np.ceil(len(ind) * 0.85))
 train_ind = ind[0:ind1]
 val_ind = ind[ind1:ind2]
 
-train_ind = [0]
-val_ind = [0]
-
 X_train, Y_train = load_patients_numpy(path_to_folder='data_numpy_separate_patients_original_size', indices=train_ind, cropping=True)
 X_val, Y_val = load_patients_numpy(path_to_folder='data_numpy_separate_patients_original_size', indices=val_ind, cropping=True)
 
@@ -56,7 +53,7 @@ for lr in lrs:
     history = unet.fit(x=X_train,
                        y=Y_train,
                        batch_size=batch_size,
-                       epochs=1,
+                       epochs=100,
                        verbose=1,
                        callbacks=[tbc, cp, es],
                        validation_data=validation_data,
