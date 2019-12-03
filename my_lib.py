@@ -147,6 +147,8 @@ def load_patients_numpy(path_to_folder, indices, cropping=False):
     '''
     start = True
     for count, i in enumerate(indices):
+        if count % 10 == 0:
+            print("Patient: ", count)
         y_up = 40
         y_down = 216
         x_left = 40
@@ -521,10 +523,10 @@ def unet_clean(pretrained_weights = None, input_size = (256, 256, 1), num_classe
                metrics=None):
     # Encoder
     inputs = Input(input_size)
-    skip1, pool1 = down_sampling_block(inputs, act_func, num_kernels=64, drop_rate=0, input_size = input_size, res=res)
-    skip2, pool2 = down_sampling_block(pool1, act_func, num_kernels=128, drop_rate=0, input_size = input_size, res=res)
-    skip3, pool3 = down_sampling_block(pool2, act_func, num_kernels=256, drop_rate=0, input_size = input_size, res=res)
-    skip4, pool4 = down_sampling_block(pool3, act_func, num_kernels=512, drop_rate=0.2, input_size = input_size, res=res)
+    skip1, pool1 = down_sampling_block(inputs, act_func, num_kernels=64, drop_rate=0, input_size=input_size, res=res)
+    skip2, pool2 = down_sampling_block(pool1, act_func, num_kernels=128, drop_rate=0, input_size=input_size, res=res)
+    skip3, pool3 = down_sampling_block(pool2, act_func, num_kernels=256, drop_rate=0, input_size=input_size, res=res)
+    skip4, pool4 = down_sampling_block(pool3, act_func, num_kernels=512, drop_rate=0.2, input_size=input_size, res=res)
 
     #Bottleneck
     conv5 = conv_block(pool4, 1024, 3, act_func, drop_rate=0.2)
@@ -534,7 +536,7 @@ def unet_clean(pretrained_weights = None, input_size = (256, 256, 1), num_classe
     conv7 = up_sampling_block(conv6, skip3, act_func, 256, drop_rate = 0, input_size = input_size, res=res)
     conv8 = up_sampling_block(conv7, skip2, act_func, 128, drop_rate = 0, input_size = input_size, res=res)
     conv9 = up_sampling_block(conv8, skip1, act_func, 64, drop_rate = 0, input_size = input_size, res=res)
-    conv9 = Conv2D(num_classes, 1, activation = act_func, padding = 'same', kernel_initializer = 'he_normal')(conv9)
+    conv9 = Conv2D(num_classes, 1, activation=act_func, padding='same', kernel_initializer='he_normal')(conv9)
 
     reshape = Reshape((num_classes, input_size[0] * input_size[1]), input_shape = (num_classes, input_size[0], input_size[1]))(conv9)
     permute = Permute((2, 1))(reshape)
@@ -743,6 +745,83 @@ def unet_dong_et_al(input_size, num_classes, lr, metrics, drop_rate, loss, pretr
     if (pretrained_weights):
         unet.load_weights(pretrained_weights)
     return unet
+
+def unet_dong_et_al2(input_size, num_classes, lr, metrics, loss, pretrained_weights=None):
+    kernel_size = 3
+    conv_kwargs = {
+        'strides': (1, 1),
+        'padding': 'same',
+        'activation': 'relu',
+        'kernel_initializer': 'he_normal'
+    }
+    conv_transpose_kwargs = {
+        'strides': (2, 2),
+        'kernel_initializer': 'he_normal'
+    }
+    conv_kwargs_fin = {
+        'strides': (1, 1),
+        'padding': 'same',
+        'activation': 'relu',
+        'kernel_initializer': 'he_normal'
+    }
+    pooling_kwargs = {
+        'pool_size': (2, 2),
+        'padding': 'valid'
+    }
+
+    # Encoder
+    inputs = Input(input_size)
+    conv1 = Conv2D(64, kernel_size, **conv_kwargs)(inputs)
+    conv1 = Conv2D(64, kernel_size, **conv_kwargs)(conv1)
+    pool1 = MaxPooling2D(**pooling_kwargs)(conv1)
+
+    conv2 = Conv2D(128, kernel_size, **conv_kwargs)(pool1)
+    conv2 = Conv2D(128, kernel_size, **conv_kwargs)(conv2)
+    pool2 = MaxPooling2D(**pooling_kwargs)(conv2)
+
+    conv3 = Conv2D(256, kernel_size, **conv_kwargs)(pool2)
+    conv3 = Conv2D(256, kernel_size, **conv_kwargs)(conv3)
+    pool3 = MaxPooling2D(**pooling_kwargs)(conv3)
+
+    conv4 = Conv2D(512, kernel_size, **conv_kwargs)(pool3)
+    conv4 = Conv2D(512, kernel_size, **conv_kwargs)(conv4)
+    pool4 = MaxPooling2D(**pooling_kwargs)(conv4)
+
+    # Bottleneck
+    conv5 = Conv2D(1024, kernel_size, **conv_kwargs)(pool4)
+    conv5 = Conv2D(1024, kernel_size, **conv_kwargs)(conv5)
+
+    # Decoder
+    up6 = Conv2DTranspose(256, (2, 2), **conv_transpose_kwargs)(conv5)
+    merge6 = concatenate([conv4, up6], axis=3)
+    conv6 = Conv2D(512, kernel_size, **conv_kwargs)(merge6)
+    conv6 = Conv2D(512, kernel_size, **conv_kwargs)(conv6)
+
+    up7 = Conv2DTranspose(128, (2, 2), **conv_transpose_kwargs)(conv6)
+    merge7 = concatenate([conv3, up7], axis=3)
+    conv7 = Conv2D(256, kernel_size, **conv_kwargs)(merge7)
+    conv7 = Conv2D(256, kernel_size, **conv_kwargs)(conv7)
+
+    up8 = Conv2DTranspose(64, (2, 2), **conv_transpose_kwargs)(conv7)
+    merge8 = concatenate([conv2, up8], axis=3)
+    conv8 = Conv2D(128, kernel_size, **conv_kwargs)(merge8)
+    conv8 = Conv2D(128, kernel_size, **conv_kwargs)(conv8)
+
+    up9 = Conv2DTranspose(32, (2, 2), **conv_transpose_kwargs)(conv8)
+    merge9 = concatenate([conv1, up9], axis=3)
+    conv9 = Conv2D(64, kernel_size, **conv_kwargs)(merge9)
+    conv9 = Conv2D(64, kernel_size, **conv_kwargs_fin)(conv9)
+
+    # Correct dimensions
+    conv9 = Conv2D(num_classes, 1, **conv_kwargs_fin)(conv9)
+    activation = Softmax()(conv9)
+    unet = Model(inputs=[inputs], outputs=[activation])
+
+    unet.compile(optimizer=Adam(lr=lr), loss=loss, metrics=metrics)
+    if (pretrained_weights):
+        unet.load_weights(pretrained_weights)
+    return unet
+
 
 def lee_unet(input_size, num_classes, lr, loss, metrics):
 
