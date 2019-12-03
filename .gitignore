@@ -1,2 +1,8 @@
 .idea
 /toy_code/mnist1_model.h5
+/Users/linuslagergren/Master_thesis/data_numpy_separate_patients_cropped_size
+/Users/linuslagergren/Master_thesis/data_numpy_separate_patients_original_size
+/Users/linuslagergren/Master_thesis/MICCAI_BraTS_2019_Data_Training
+/logs
+*.nii.gz
+*.npy
