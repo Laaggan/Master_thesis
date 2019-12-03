@@ -35,15 +35,15 @@ lr = 1e-4
 
 # Where to save logs and weights
 weights_path = datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + '-all-lr-' + str(lr)\
-               + '-n-' + str(X_train.shape[0]) + "-weights.hdf5"
+               + '-n-' + str(X_train.shape[0]) + "-weights.hdf5" + 'he_normal_l1l2'
 log_dir = "logs/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + "-all" \
-          + '-lr-' + str(lr) + '-n-' + str(X_train.shape[0])
+          + '-lr-' + str(lr) + '-n-' + str(X_train.shape[0]) + 'he_normal_l1l2'
 
 cp = ModelCheckpoint(weights_path, save_best_only=True, monitor='val_loss', mode='max', verbose=1, period=1)
 es = EarlyStopping(monitor='val_loss', mode='auto', verbose=1, patience=10)
 tbc = TensorBoard(log_dir=log_dir)
 
-metrics = [dice_en_metric, 'accuracy']
+metrics = [dice, dice_en_metric, dice_core_metric, dice_whole_metric, 'accuracy']
 unet = unet_dong_et_al2(input_size=input_size, num_classes=4, lr=lr, loss='categorical_crossentropy', metrics=metrics)
 
 X_train = X_train.reshape(-1, H, W, 4)
