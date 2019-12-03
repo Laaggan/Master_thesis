@@ -167,11 +167,7 @@ def load_patients_numpy(path_to_folder, indices, cropping=False):
             data = np.load(path_to_folder + '/patient-' + str(i) + '.npz')
             X = data['arr_0'][0]
             Y = data['arr_0'][1]
-            '''
-            if p > 0.5:
-                X = np.flip(X)
-                Y = np.flip(Y)
-            '''
+
             if cropping:
                 X = X[:, x_left:x_right, y_up:y_down, :]
                 Y = Y[:, x_left:x_right, y_up:y_down, :]
@@ -181,11 +177,7 @@ def load_patients_numpy(path_to_folder, indices, cropping=False):
             data = np.load(path_to_folder + '/patient-' + str(i) + '.npz')
             temp_X = data['arr_0'][0]
             temp_Y = data['arr_0'][1]
-            '''
-            if p > 0.5:
-                temp_X = np.flip(temp_X)
-                temp_Y = np.flip(temp_Y)
-            '''
+
             if cropping:
                 temp_X = temp_X[:, x_left:x_right, y_up:y_down, :]
                 temp_Y = temp_Y[:, x_left:x_right, y_up:y_down, :]
@@ -194,6 +186,63 @@ def load_patients_numpy(path_to_folder, indices, cropping=False):
             Y = np.concatenate((Y, temp_Y), axis=0)
 
     return X, Y
+
+def load_patients_numpy_aug(path_to_folder, indices, cropping=False):
+    '''
+    :param path_to_folder: The path to the folder which contain the patients saved one by one in .npz format
+    :param indices: A list with the indices, range [0, 335], which one wants to load to memory
+    :return: returns one numpy array with training data and one numpy array with the corresponding one hot
+    encoded labels.
+    '''
+    start = True
+    for count, i in enumerate(indices):
+        if count % 10 == 0:
+            print("Patient: ", count)
+        y_up = 40
+        y_down = 216
+        x_left = 40
+        x_right = 216
+        H = y_down - y_up
+        W = x_right - x_left
+
+
+        if count % 10 == 0:
+            print('Patient:', count)
+
+        p = np.random.rand()
+
+        if start:
+            data = np.load(path_to_folder + '/patient-' + str(i) + '.npz')
+            X = data['arr_0'][0]
+            Y = data['arr_0'][1]
+
+            if p > 0.5:
+                X = np.flip(X)
+                Y = np.flip(Y)
+
+            if cropping:
+                X = X[:, x_left:x_right, y_up:y_down, :]
+                Y = Y[:, x_left:x_right, y_up:y_down, :]
+
+            start = False
+        else:
+            data = np.load(path_to_folder + '/patient-' + str(i) + '.npz')
+            temp_X = data['arr_0'][0]
+            temp_Y = data['arr_0'][1]
+
+            if p > 0.5:
+                temp_X = np.flip(temp_X)
+                temp_Y = np.flip(temp_Y)
+
+            if cropping:
+                temp_X = temp_X[:, x_left:x_right, y_up:y_down, :]
+                temp_Y = temp_Y[:, x_left:x_right, y_up:y_down, :]
+
+            X = np.concatenate((X, temp_X), axis=0)
+            Y = np.concatenate((Y, temp_Y), axis=0)
+
+    return X, Y
+
 
 def load_patients_new_again(i, j, modalities, slices=None, base_path=""):
     # Modalities 't1', 't1ce', 't2', 'flair'
@@ -656,12 +705,12 @@ def unet_dong_et_al(input_size, num_classes, lr, metrics, drop_rate, loss, pretr
         'strides': (1, 1),
         'padding': 'same',
         'activation': 'relu',
-        'kernel_initializer': random_normal(stddev=0.01),
+        'kernel_initializer': random_normal(stddev=0.01)
         #'activity_regularizer': l1_l2()
     }
     conv_transpose_kwargs = {
         'strides': (2, 2),
-        'kernel_initializer': random_normal(stddev=0.01),
+        'kernel_initializer': random_normal(stddev=0.01)
         #'activity_regularizer': l1_l2()
     }
     conv_kwargs_fin = {
@@ -752,17 +801,20 @@ def unet_dong_et_al2(input_size, num_classes, lr, metrics, loss, pretrained_weig
         'strides': (1, 1),
         'padding': 'same',
         'activation': 'relu',
-        'kernel_initializer': 'he_normal'
+        'kernel_initializer': 'he_normal',
+        'kernel_regularizer': l1_l2(l1=0.01, l2=0.01)
     }
     conv_transpose_kwargs = {
         'strides': (2, 2),
-        'kernel_initializer': 'he_normal'
+        'kernel_initializer': 'he_normal',
+        'kernel_regularizer': l1_l2(l1=0.01, l2=0.01)
     }
     conv_kwargs_fin = {
         'strides': (1, 1),
         'padding': 'same',
         'activation': 'relu',
-        'kernel_initializer': 'he_normal'
+        'kernel_initializer': 'he_normal',
+        'kernel_regularizer': l1_l2(l1=0.01, l2=0.01)
     }
     pooling_kwargs = {
         'pool_size': (2, 2),
