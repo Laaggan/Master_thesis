@@ -35,9 +35,9 @@ lr = 1e-4
 
 # Where to save logs and weights
 weights_path = datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + '-all-lr-' + str(lr)\
-               + '-n-' + str(X_train.shape[0]) + "-weights.hdf5" + 'he_normal_l1l2'
+               + '-n-' + str(X_train.shape[0]) + "-weights_he_normal_l2_0.001.hdf5"
 log_dir = "logs/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + "-all" \
-          + '-lr-' + str(lr) + '-n-' + str(X_train.shape[0]) + 'he_normal_l1l2'
+          + '-lr-' + str(lr) + '-n-' + str(X_train.shape[0]) + '_he_normal_l2_0.001'
 
 cp = ModelCheckpoint(weights_path, save_best_only=True, monitor='val_loss', mode='max', verbose=1, period=1)
 es = EarlyStopping(monitor='val_loss', mode='auto', verbose=1, patience=10)

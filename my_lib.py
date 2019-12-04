@@ -22,7 +22,7 @@ import keras.initializers as initializers
 from keras import backend as K
 from keras.callbacks import ModelCheckpoint
 from keras.initializers import random_normal
-from keras.regularizers import l1_l2
+from keras.regularizers import l1_l2, l2
 
 def print_memory_use():
     '''
@@ -539,13 +539,24 @@ def conv_block(input_, num_kernels, kernel_size, act_func, drop_rate):
 '''
 def conv_block_resnet(input_, num_kernels, kernel_size, act_func, drop_rate, input_size):
     argz = [num_kernels, kernel_size]
-    kwargz = {'activation':act_func, 'padding':'same', 'kernel_initializer':'he_normal'}
+    kwargz = {
+        'activation':act_func, 
+        'padding':'same', 
+        'kernel_initializer':'he_normal', 
+        'kernel_regularizer':l1_l2(l1=0.01, l2=0.01)}
+    
     conv = Conv2D(*argz, **kwargz)(input_)
     conv = Conv2D(*argz, **kwargz)(conv)
-    conv = Conv2D(input_size[-1], (1,1), activation = 'linear', padding = 'same', kernel_initializer = 'he_normal')(conv)
+    conv = Conv2D(
+        input_size[-1], 
+        (1,1), 
+        activation = 'linear', 
+        padding = 'same', 
+        kernel_initializer = 'he_normal')(conv)
     conv = Dropout(drop_rate)(conv)
     merge = Add()([input_, conv])
-    merge = BatchNormalization()(merge)
+    # Since we do not use BatchNormalization we shouldn't use BatchNorm
+    #merge = BatchNormalization()(merge)
     merge = Activation(act_func)(merge)
     return merge
 
@@ -568,20 +579,19 @@ def up_sampling_block(input_, skip, act_func, num_kernels, drop_rate, input_size
         conv = conv_block(merge, num_kernels, (3,3), act_func, drop_rate)
     return conv
 
-def unet_clean(pretrained_weights = None, input_size = (256, 256, 1), num_classes=2, learning_rate=1e-4, act_func='relu', res=False,
-               metrics=None):
+def unet_clean(pretrained_weights = None, input_size = (256, 256, 1), num_classes=2, learning_rate=1e-4, act_func='relu', res=False, metrics=None):
     # Encoder
     inputs = Input(input_size)
     skip1, pool1 = down_sampling_block(inputs, act_func, num_kernels=64, drop_rate=0, input_size=input_size, res=res)
     skip2, pool2 = down_sampling_block(pool1, act_func, num_kernels=128, drop_rate=0, input_size=input_size, res=res)
     skip3, pool3 = down_sampling_block(pool2, act_func, num_kernels=256, drop_rate=0, input_size=input_size, res=res)
-    skip4, pool4 = down_sampling_block(pool3, act_func, num_kernels=512, drop_rate=0.2, input_size=input_size, res=res)
+    skip4, pool4 = down_sampling_block(pool3, act_func, num_kernels=512, drop_rate=0, input_size=input_size, res=res)
 
     #Bottleneck
-    conv5 = conv_block(pool4, 1024, 3, act_func, drop_rate=0.2)
+    conv5 = conv_block(pool4, 1024, 3, act_func, drop_rate=0)
 
     # Decoder
-    conv6 = up_sampling_block(conv5, skip4, act_func, 512, drop_rate = 0.2, input_size = input_size, res=res)
+    conv6 = up_sampling_block(conv5, skip4, act_func, 512, drop_rate = 0, input_size = input_size, res=res)
     conv7 = up_sampling_block(conv6, skip3, act_func, 256, drop_rate = 0, input_size = input_size, res=res)
     conv8 = up_sampling_block(conv7, skip2, act_func, 128, drop_rate = 0, input_size = input_size, res=res)
     conv9 = up_sampling_block(conv8, skip1, act_func, 64, drop_rate = 0, input_size = input_size, res=res)
@@ -802,19 +812,19 @@ def unet_dong_et_al2(input_size, num_classes, lr, metrics, loss, pretrained_weig
         'padding': 'same',
         'activation': 'relu',
         'kernel_initializer': 'he_normal',
-        'kernel_regularizer': l1_l2(l1=0.01, l2=0.01)
+        'kernel_regularizer': l2(0.001)
     }
     conv_transpose_kwargs = {
         'strides': (2, 2),
         'kernel_initializer': 'he_normal',
-        'kernel_regularizer': l1_l2(l1=0.01, l2=0.01)
+        'kernel_regularizer': l2(0.001)
     }
     conv_kwargs_fin = {
         'strides': (1, 1),
         'padding': 'same',
         'activation': 'relu',
         'kernel_initializer': 'he_normal',
-        'kernel_regularizer': l1_l2(l1=0.01, l2=0.01)
+        'kernel_regularizer': l2(0.001)
     }
     pooling_kwargs = {
         'pool_size': (2, 2),
@@ -867,8 +877,8 @@ def unet_dong_et_al2(input_size, num_classes, lr, metrics, loss, pretrained_weig
     # Correct dimensions
     conv9 = Conv2D(num_classes, 1, **conv_kwargs_fin)(conv9)
     activation = Softmax()(conv9)
-    unet = Model(inputs=[inputs], outputs=[activation])
 
+    unet = Model(inputs=[inputs], outputs=[activation])
     unet.compile(optimizer=Adam(lr=lr), loss=loss, metrics=metrics)
     if (pretrained_weights):
         unet.load_weights(pretrained_weights)
