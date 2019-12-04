@@ -14,16 +14,7 @@ modalities = {
 }
 
 batch_size = 16
-# There is 335 patients in total. -> indices [0, 334]
-n = 335
-np.random.seed(42)
-ind = np.arange(n)
-np.random.shuffle(ind)
-ind1 = int(np.ceil(len(ind) * 0.7))
-ind2 = int(np.ceil(len(ind) * 0.85))
-
-train_ind = ind[0:ind1]
-val_ind = ind[ind1:ind2]
+train_ind, val_ind = create_train_test_split()
 
 X_train, Y_train = load_patients_numpy(path_to_folder='data_numpy_separate_patients_original_size', indices=train_ind, cropping=True)
 X_val, Y_val = load_patients_numpy(path_to_folder='data_numpy_separate_patients_original_size', indices=val_ind, cropping=True)

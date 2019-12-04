@@ -44,6 +44,19 @@ mapping2 = {
     1: "Tumor",
 }
 
+def create_train_test_split():
+    # There is 335 patients in total. -> indices [0, 334]
+    n = 335
+    np.random.seed(42)
+    ind = np.arange(n)
+    np.random.shuffle(ind)
+    ind1 = int(np.ceil(len(ind) * 0.7))
+    ind2 = int(np.ceil(len(ind) * 0.85))
+
+    train_ind = ind[0:ind1]
+    val_ind = ind[ind1:ind2]
+    return train_ind, val_ind
+
 def OHE(Y):
     '''
     :param Y: A slice containing original BraTS-data with classes {0,1,2,4}
