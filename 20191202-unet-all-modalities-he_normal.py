@@ -12,8 +12,7 @@ modalities = {
     't2': 2,
     'flair': 3
 }
-# Seems to be a fine learning rate
-lrs = [1e-6, 1e-5, 1e-4, 1e-3, 1e-2]
+
 batch_size = 16
 # There is 335 patients in total. -> indices [0, 334]
 n = 335
@@ -39,7 +38,7 @@ weights_path = datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + '-all-lr-' + 
 log_dir = "logs/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + "-all" \
           + '-lr-' + str(lr) + '-n-' + str(X_train.shape[0]) + '_he_normal_l2_0.001'
 
-cp = ModelCheckpoint(weights_path, save_best_only=True, monitor='val_loss', mode='max', verbose=1, period=1)
+cp = ModelCheckpoint(weights_path, save_best_only=True, monitor='val_loss', mode='auto', verbose=1, period=1)
 es = EarlyStopping(monitor='val_loss', mode='auto', verbose=1, patience=10)
 tbc = TensorBoard(log_dir=log_dir)
 
