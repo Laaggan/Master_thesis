@@ -859,12 +859,16 @@ def unet_dong_et_al2(input_size, num_classes, lr, metrics, loss, pretrained_weig
     pool3 = MaxPooling2D(**pooling_kwargs)(conv3)
 
     conv4 = Conv2D(512, kernel_size, **conv_kwargs)(pool3)
+    conv4 = Dropout(rate=0.1)(conv4)
     conv4 = Conv2D(512, kernel_size, **conv_kwargs)(conv4)
+    conv4 = Dropout(rate=0.1)(conv4)
     pool4 = MaxPooling2D(**pooling_kwargs)(conv4)
 
     # Bottleneck
     conv5 = Conv2D(1024, kernel_size, **conv_kwargs)(pool4)
+    conv5 = Dropout(rate=0.1)(conv5)
     conv5 = Conv2D(1024, kernel_size, **conv_kwargs)(conv5)
+    conv5 = Dropout(rate=0.1)(conv5)
 
     # Decoder
     up6 = Conv2DTranspose(256, (2, 2), **conv_transpose_kwargs)(conv5)
