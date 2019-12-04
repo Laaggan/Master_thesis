@@ -12,19 +12,9 @@ modalities = {
     't2': 2,
     'flair': 3
 }
-# Seems to be a fine learning rate
-lrs = [1e-6, 1e-5, 1e-4, 1e-3, 1e-2]
-batch_size = 16
-# There is 335 patients in total. -> indices [0, 334]
-n = 335
-np.random.seed(42)
-ind = np.arange(n)
-np.random.shuffle(ind)
-ind1 = int(np.ceil(len(ind) * 0.7))
-ind2 = int(np.ceil(len(ind) * 0.85))
 
-train_ind = ind[0:ind1]
-val_ind = ind[ind1:ind2]
+batch_size = 16
+train_ind, val_ind = create_train_test_split()
 
 X_train, Y_train = load_patients_numpy(path_to_folder='data_numpy_separate_patients_original_size', indices=train_ind, cropping=True)
 X_val, Y_val = load_patients_numpy(path_to_folder='data_numpy_separate_patients_original_size', indices=val_ind, cropping=True)
@@ -35,15 +25,15 @@ lr = 1e-4
 
 # Where to save logs and weights
 weights_path = datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + '-all-lr-' + str(lr)\
-               + '-n-' + str(X_train.shape[0]) + "-weights.hdf5"
+               + '-n-' + str(X_train.shape[0]) + "-weights_he_normal_l2_0.001.hdf5"
 log_dir = "logs/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + "-all" \
-          + '-lr-' + str(lr) + '-n-' + str(X_train.shape[0])
+          + '-lr-' + str(lr) + '-n-' + str(X_train.shape[0]) + '_he_normal_l2_0.001'
 
-cp = ModelCheckpoint(weights_path, save_best_only=True, monitor='val_loss', mode='max', verbose=1, period=1)
+cp = ModelCheckpoint(weights_path, save_best_only=True, monitor='val_loss', mode='auto', verbose=1, period=1)
 es = EarlyStopping(monitor='val_loss', mode='auto', verbose=1, patience=10)
 tbc = TensorBoard(log_dir=log_dir)
 
-metrics = [dice_en_metric, 'accuracy']
+metrics = [dice, dice_en_metric, dice_core_metric, dice_whole_metric, 'accuracy']
 unet = unet_dong_et_al2(input_size=input_size, num_classes=4, lr=lr, loss='categorical_crossentropy', metrics=metrics)
 
 X_train = X_train.reshape(-1, H, W, 4)
