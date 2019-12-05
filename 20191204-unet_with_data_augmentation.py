@@ -14,16 +14,16 @@ train_ind, val_ind = create_train_test_split()
 
 batch_size=16
 lr=1e-4
-epochs = 10
+epochs = 100
 total_num_slices = 1.5e4
-num_batches_in_epoch = total_num_slices // batch_size
+num_batches_in_epoch = int(total_num_slices // batch_size)
 
 # Setup the model
 unet = unet_dong_et_al2(input_size=input_size, num_classes=4, lr=lr, loss='categorical_crossentropy', metrics=metrics)
+train_choice = np.random.choice(train_ind, len(val_ind))
 
-X_train, Y_train = load_patients_numpy("data_numpy_separate_patients_original_size", train_ind, cropping=True)
+X_train, Y_train = load_patients_numpy("data_numpy_separate_patients_original_size", train_choice, cropping=True)
 X_val, Y_val = load_patients_numpy("data_numpy_separate_patients_original_size", val_ind, cropping=True)
-data = np.concatenate((X_train, Y_train), axis=3)
 
 im_gen = ImageDataGenerator(
    rotation_range=20,
@@ -33,8 +33,6 @@ im_gen = ImageDataGenerator(
    height_shift_range=0.1,
    shear_range=2,
    zoom_range=0.1)
-
-aug_iter = im_gen.flow(data)
 
 import sys
 
@@ -51,26 +49,33 @@ def create_a_batch(aug_iter, batch_size):
 
 training_results = []
 validation_results = []
+patients_in_aug_iter = 10
+num_batches = int((patients_in_aug_iter*66)//batch_size)
 
 for epoch in range(epochs):
-    num_batches = 1
-    for batch_id in range(num_batches_in_epoch):
-        sys.stdout.write('\r')
-        # the exact output you're looking for:
-        i = round(((batch_id+1)*batch_size))
-        sys.stdout.write("Sample " + str(i))
-        sys.stdout.flush()
+    print("Epoch", epoch)
+    for _ in range(int(len(train_ind)//patients_in_aug_iter)):
+        curr_ind = np.random.choice(train_ind, patients_in_aug_iter)
+        print("Patients:", curr_ind)
+        X_aug, Y_aug = load_patients_numpy("data_numpy_separate_patients_original_size", curr_ind, cropping=True)
+        data = np.concatenate((X_aug, Y_aug), axis=3)
+        aug_iter = im_gen.flow(data)
+        for batch_id in range(num_batches):
+            sys.stdout.write('\r')
+            # the exact output you're looking for:
+            i = round(((batch_id+1)*batch_size))
+            sys.stdout.write("Sample " + str(i))
+            sys.stdout.flush()
 
-        X_batch, Y_batch = create_a_batch(aug_iter, batch_size)
-        loss = unet.train_on_batch(X_batch, Y_batch)
+            X_batch, Y_batch = create_a_batch(aug_iter, batch_size)
+            loss = unet.train_on_batch(X_batch, Y_batch)
 
-    if epoch % 10 == 0:
-        train_eval = unet.evaluate(X_train, Y_train)
-        #[dice, dice_en_metric, dice_core_metric, dice_whole_metric, 'accuracy']
-        s_train = "Train; Loss:{}, DSC:{}, DSC enhancing:{}, DSC core:{}, DSC whole:{}, accuracy:{}"
-        # [dice, dice_en_metric, dice_core_metric, dice_whole_metric, 'accuracy']
-        print(s_train.format(*train_eval))
-        training_results.append(train_eval)
+    train_eval = unet.evaluate(X_train, Y_train)
+    #[dice, dice_en_metric, dice_core_metric, dice_whole_metric, 'accuracy']
+    s_train = "Train; Loss:{}, DSC:{}, DSC enhancing:{}, DSC core:{}, DSC whole:{}, accuracy:{}"
+    # [dice, dice_en_metric, dice_core_metric, dice_whole_metric, 'accuracy']
+    print(s_train.format(*train_eval))
+    training_results.append(train_eval)
 
     val_eval = unet.evaluate(X_val, Y_val)
     s_val = "Validation; Loss:{}, DSC:{}, DSC enhancing:{}, DSC core:{}, DSC whole:{}, accuracy:{}"
@@ -78,10 +83,10 @@ for epoch in range(epochs):
     print(s_val.format(*val_eval))
     validation_results.append(val_eval)
 
-with open('train_results.pkl', 'wb') as f:
+with open(datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + 'train_results.pkl', 'wb') as f:
     pickle.dump(training_results, f)
 
-with open('validation_results.pkl', 'wb') as f:
+with open(datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + 'validation_results.pkl', 'wb') as f:
     pickle.dump(validation_results, f)
 
 weights_path = datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + '-all-lr-' + str(lr)\
