@@ -12,7 +12,7 @@ metrics = [dice, dice_en_metric, dice_core_metric, dice_whole_metric, 'accuracy'
 
 train_ind, val_ind = create_train_test_split()
 
-batch_size=16
+batch_size=64
 lr=1e-4
 epochs = 100
 total_num_slices = 1.5e4
@@ -52,6 +52,11 @@ validation_results = []
 patients_in_aug_iter = 10
 num_batches = int((patients_in_aug_iter*66)//batch_size)
 
+weights_path = datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + '-all-lr-' + str(lr)\
+               + '-n-' + str(X_train.shape[0]) + "-weights_he_normal_l2_0.001-data_augmentation.hdf5"
+train_res_path = datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + 'train_results.pkl'
+val_res_path = datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + 'validation_results.pkl'
+
 for epoch in range(epochs):
     print("Epoch", epoch)
     for _ in range(int(len(train_ind)//patients_in_aug_iter)):
@@ -83,13 +88,10 @@ for epoch in range(epochs):
     print(s_val.format(*val_eval))
     validation_results.append(val_eval)
 
-with open(datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + 'train_results.pkl', 'wb') as f:
-    pickle.dump(training_results, f)
+    with open(train_res_path, 'wb') as f:
+        pickle.dump(training_results, f)
 
-with open(datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + 'validation_results.pkl', 'wb') as f:
-    pickle.dump(validation_results, f)
+    with open(val_res_path, 'wb') as f:
+        pickle.dump(validation_results, f)
 
-weights_path = datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + '-all-lr-' + str(lr)\
-               + '-n-' + str(X_train.shape[0]) + "-weights_he_normal_l2_0.001-data_augmentation.hdf5"
-
-unet.save_weights(weights_path)
+    unet.save_weights(weights_path)
