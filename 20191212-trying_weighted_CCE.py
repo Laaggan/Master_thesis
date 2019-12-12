@@ -60,8 +60,8 @@ tot_generator = zip(input_generator, label_generator)
 
 unet.fit_generator(
         tot_generator,
-        steps_per_epoch=3,
-        epochs=2,
+        steps_per_epoch=num_batches_in_epoch,
+        epochs=100,
         validation_data=(X_val, Y_val),
         callbacks=[cp, es, tbc]
 )
