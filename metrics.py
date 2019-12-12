@@ -55,7 +55,7 @@ def weighted_log_loss(y_true, y_pred):
     # clip to prevent NaN's and Inf's
     y_pred = K.clip(y_pred, K.epsilon(), 1 - K.epsilon())
     # weights are assigned in this order : normal,necrotic,edema,enhancing
-    weights = np.array([1, 5, 2, 4])
+    weights = np.array([1/25, 1, 1/3, 1])
     weights = K.variable(weights)
     loss = y_true * K.log(y_pred) * weights
     loss = K.mean(-K.sum(loss, -1))
