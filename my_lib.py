@@ -23,6 +23,12 @@ from keras import backend as K
 from keras.callbacks import ModelCheckpoint
 from keras.initializers import random_normal
 from keras.regularizers import l1_l2, l2
+from keras.layers import *
+from keras.models import *
+from keras.optimizers import *
+from keras.regularizers import l2
+from keras.activations import *
+from keras.activations import *
 
 def print_memory_use():
     '''
@@ -52,10 +58,12 @@ def create_train_test_split():
     np.random.shuffle(ind)
     ind1 = int(np.ceil(len(ind) * 0.7))
     ind2 = int(np.ceil(len(ind) * 0.85))
+    ind3 = len(ind)
 
     train_ind = ind[0:ind1]
     val_ind = ind[ind1:ind2]
-    return train_ind, val_ind
+    test_ind = ind[ind2:ind3]
+    return train_ind, val_ind, test_ind
 
 def OHE(Y):
     '''
@@ -1259,6 +1267,134 @@ def lee_unet2_l1l2(input_size, num_classes, lr, loss, metrics):
     model.compile(optimizer=Adam(lr=lr), loss=loss, metrics=metrics)
 
     return model
+
+def zscore_norm(MRI):
+    '''
+    :param MRI: Image data should be given patientwise
+    :return: Normalized data
+    '''
+    MRI_f = MRI.reshape(-1)
+    mask_MRI = MRI_f != 0
+    MRI_f[mask_MRI] = (MRI_f[mask_MRI] - MRI_f[mask_MRI].mean())/MRI_f[mask_MRI].std()
+    return MRI_f.reshape(MRI.shape)
+
+def unet_res(input_size, num_classes, lr, metrics, loss, pretrained_weights=None):
+    kernel_size = 3
+    conv_kwargs = {
+        'strides': (1, 1),
+        'padding': 'same',
+        'activation': 'relu',
+        'kernel_initializer': 'he_normal',
+        'kernel_regularizer': l2(0.001)
+    }
+    conv_skip_kwargs = {
+        'strides': (1, 1),
+        'padding': 'same',
+        'activation': 'linear',
+        'kernel_initializer': 'he_normal',
+        'kernel_regularizer': l2(0.001)
+    }
+    conv_transpose_kwargs = {
+        'strides': (2, 2),
+        'kernel_initializer': 'he_normal',
+        'kernel_regularizer': l2(0.001)
+    }
+    conv_kwargs_fin = {
+        'strides': (1, 1),
+        'padding': 'same',
+        'activation': 'relu',
+        'kernel_initializer': 'he_normal',
+        'kernel_regularizer': l2(0.001)
+    }
+    pooling_kwargs = {
+        'pool_size': (2, 2),
+        'padding': 'valid'
+    }
+
+    # Encoder
+    inputs = Input(input_size)
+    skipconv1 = Conv2D(64, 1, **conv_skip_kwargs)(inputs)
+    conv1 = Conv2D(64, kernel_size, **conv_kwargs)(inputs)
+    conv1 = Conv2D(64, kernel_size, **conv_skip_kwargs)(conv1)
+    merge1 = Add()([skipconv1, conv1])
+    merge1 = Activation('relu')(merge1)
+    pool1 = MaxPooling2D(**pooling_kwargs)(merge1)
+
+    skipconv2 = Conv2D(128, 1, **conv_skip_kwargs)(pool1)
+    conv2 = Conv2D(128, kernel_size, **conv_kwargs)(pool1)
+    conv2 = Conv2D(128, kernel_size, **conv_skip_kwargs)(conv2)
+    merge2 = Add()([skipconv2, conv2])
+    merge2 = Activation('relu')(merge2)
+    pool2 = MaxPooling2D(**pooling_kwargs)(merge2)
+
+    skipconv3 = Conv2D(256, 1, **conv_skip_kwargs)(pool2)
+    conv3 = Conv2D(256, kernel_size, **conv_kwargs)(pool2)
+    conv3 = Conv2D(256, kernel_size, **conv_skip_kwargs)(conv3)
+    merge3 = Add()([skipconv3, conv3])
+    merge3 = Activation('relu')(merge3)
+    pool3 = MaxPooling2D(**pooling_kwargs)(merge3)
+
+    skipconv4 = Conv2D(512, 1, **conv_skip_kwargs)(pool3)
+    conv4 = Conv2D(512, kernel_size, **conv_kwargs)(pool3)
+    conv4 = Dropout(rate=0.1)(conv4)
+    conv4 = Conv2D(512, kernel_size, **conv_skip_kwargs)(conv4)
+    conv4 = Dropout(rate=0.1)(conv4)
+    merge4 = Add()([skipconv4, conv4])
+    merge4 = Activation('relu')(merge4)
+    pool4 = MaxPooling2D(**pooling_kwargs)(merge4)
+
+    # Bottleneck
+    skipconv5 = Conv2D(1024, 1, **conv_skip_kwargs)(pool4)
+    conv5 = Conv2D(1024, kernel_size, **conv_kwargs)(pool4)
+    conv5 = Dropout(rate=0.1)(conv5)
+    conv5 = Conv2D(1024, kernel_size, **conv_kwargs)(conv5)
+    conv5 = Dropout(rate=0.1)(conv5)
+    merge5 = Add()([skipconv5, conv5])
+    merge5 = Activation('relu')(merge5)
+    pool5 = MaxPooling2D(**pooling_kwargs)(merge5)
+
+    # Decoder
+    up6 = Conv2DTranspose(256, (2, 2), **conv_transpose_kwargs)(conv5)
+    merge6 = concatenate([conv4, up6], axis=3)
+    skipconv6 = Conv2D(512, 1, **conv_skip_kwargs)(merge6)
+    conv6 = Conv2D(512, kernel_size, **conv_kwargs)(merge6)
+    conv6 = Conv2D(512, kernel_size, **conv_kwargs)(conv6)
+    conv6 = Add()([skipconv6, conv6])
+    conv6 = Activation('relu')(conv6)
+
+    up7 = Conv2DTranspose(256, (2, 2), **conv_transpose_kwargs)(conv6)
+    merge7 = concatenate([conv3, up7], axis=3)
+    skipconv7 = Conv2D(512, 1, **conv_skip_kwargs)(merge7)
+    conv7 = Conv2D(512, kernel_size, **conv_kwargs)(merge7)
+    conv7 = Conv2D(512, kernel_size, **conv_kwargs)(conv7)
+    conv7 = Add()([skipconv7, conv7])
+    conv7 = Activation('relu')(conv7)
+
+    up8 = Conv2DTranspose(256, (2, 2), **conv_transpose_kwargs)(conv7)
+    merge8 = concatenate([conv2, up8], axis=3)
+    skipconv8 = Conv2D(512, 1, **conv_skip_kwargs)(merge8)
+    conv8 = Conv2D(512, kernel_size, **conv_kwargs)(merge8)
+    conv8 = Conv2D(512, kernel_size, **conv_kwargs)(conv8)
+    conv8 = Add()([skipconv8, conv8])
+    conv8 = Activation('relu')(conv8)
+
+    up9 = Conv2DTranspose(256, (2, 2), **conv_transpose_kwargs)(conv8)
+    merge9 = concatenate([conv1, up9], axis=3)
+    skipconv9 = Conv2D(512, 1, **conv_skip_kwargs)(merge9)
+    conv9 = Conv2D(512, kernel_size, **conv_kwargs)(merge9)
+    conv9 = Conv2D(512, kernel_size, **conv_kwargs)(conv9)
+    conv9 = Add()([skipconv9, conv9])
+    conv9 = Activation('relu')(conv9)
+
+    # Correct dimensions
+    conv9 = Conv2D(num_classes, 1, **conv_kwargs_fin)(conv9)
+    activation = Softmax()(conv9)
+
+    unet = Model(inputs=[inputs], outputs=[activation])
+    unet.compile(optimizer=Adam(lr=lr), loss=loss, metrics=metrics)
+    if (pretrained_weights):
+        unet.load_weights(pretrained_weights)
+    return unet
 
 print('Finished')
 print_memory_use()
