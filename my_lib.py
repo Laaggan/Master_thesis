@@ -1396,5 +1396,13 @@ def unet_res(input_size, num_classes, lr, metrics, loss, pretrained_weights=None
         unet.load_weights(pretrained_weights)
     return unet
 
+def convert_brats_to_asgeir(Y):
+    tumor_core = Y[:, :, :, 1] + Y[:, :, :, 3]
+    tumor_core = np.expand_dims(tumor_core, axis=3)
+    new_background = Y[:, :, :, 0] + Y[:, :, :, 2]
+    new_background = np.expand_dims(new_background, axis=3)
+    Y_converted = np.concatenate((new_background, tumor_core), axis=3)
+    return Y_converted
+
 print('Finished')
 print_memory_use()

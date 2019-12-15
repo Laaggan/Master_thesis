@@ -81,3 +81,12 @@ def gen_dice_loss(y_true, y_pred):
     del sum_p, sum_r, sum_pr, weights
 
     return GDL + weighted_log_loss(y_true, y_pred)
+
+def dice_binary_metric(y_true, y_pred):
+    # computes the dice for the enhancing region
+    y_true_f = K.reshape(y_true, shape=(-1, 2))
+    y_pred_f = K.reshape(y_pred, shape=(-1, 2))
+    y_enh = y_true_f[:, -1]
+    p_enh = y_pred_f[:, -1]
+    dice_en = dice(y_enh, p_enh)
+    return dice_en
