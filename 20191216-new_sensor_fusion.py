@@ -11,8 +11,6 @@ input_size = (176, 176, 4)
 metrics = [dice, dice_en_metric, dice_core_metric, dice_whole_metric, 'accuracy']
 
 train_ind, val_ind, _ = create_train_test_split()
-train_ind = train_ind[0:1]
-val_ind = val_ind[0:1]
 
 batch_size = 4
 lr = 1e-4
