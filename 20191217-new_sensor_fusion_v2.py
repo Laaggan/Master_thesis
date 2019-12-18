@@ -12,7 +12,7 @@ metrics = [dice, dice_en_metric, dice_core_metric, dice_whole_metric, 'accuracy'
 
 train_ind, val_ind, _ = create_train_test_split()
 
-batch_size = 8
+batch_size = 4
 lr = 1e-4
 epochs = 100
 total_num_slices = 1.5e4
