@@ -43,34 +43,37 @@ def load_doctor_data(indices):
 
     for i in indices:
         print(i)
-        if i <= 9:
-            data_path = "/GBM0" + str(i) + "_SS.nii.gz"
-            label_path = "/GBM0" + str(i) + "_label.nii.gz"
-        else:
-            data_path = "/GBM" + str(i) + "_SS.nii.gz"
-            label_path = "/GBM" + str(i) + "_label.nii.gz"
+        try:
+            if i <= 9:
+                data_path = "/GBM0" + str(i) + "_SS.nii.gz"
+                label_path = "/GBM0" + str(i) + "_label.nii.gz"
+            else:
+                data_path = "/GBM" + str(i) + "_SS.nii.gz"
+                label_path = "/GBM" + str(i) + "_label.nii.gz"
 
-        X = nib.load(base_path + data_path)
-        Y = nib.load(base_path + label_path)
+            X = nib.load(base_path + data_path)
+            Y = nib.load(base_path + label_path)
 
-        X = X.get_fdata()
-        X = zscore_norm(X)
-        Y = Y.get_fdata()
+            X = X.get_fdata()
+            X = zscore_norm(X)
+            Y = Y.get_fdata()
 
-        X = cv2.resize(X, (256, 256), interpolation=cv2.INTER_CUBIC)
-        Y = cv2.resize(Y, (256, 256), interpolation=0)
+            X = cv2.resize(X, (256, 256), interpolation=cv2.INTER_CUBIC)
+            Y = cv2.resize(Y, (256, 256), interpolation=0)
 
-        X = np.moveaxis(X, -1, 0)
-        Y = np.moveaxis(Y, -1, 0)
-        org_shape = Y.shape
+            X = np.moveaxis(X, -1, 0)
+            Y = np.moveaxis(Y, -1, 0)
+            org_shape = Y.shape
 
-        mask = np.sum(Y.reshape(org_shape[0], -1), axis=1) > 0
-        samples_in_patient = sum(mask)
+            mask = np.sum(Y.reshape(org_shape[0], -1), axis=1) > 0
+            samples_in_patient = sum(mask)
 
-        data.append(X[mask, :, :])
-        labels.append(Y[mask, :, :])
-        lens.append(samples_in_patient)
-        inds.append(i)
+            data.append(X[mask, :, :])
+            labels.append(Y[mask, :, :])
+            lens.append(samples_in_patient)
+            inds.append(i)
+        except:
+            next
 
     X = np.concatenate(data, axis=0)
     Y = np.concatenate(labels, axis=0)
