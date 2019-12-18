@@ -85,6 +85,9 @@ def load_doctor_data(indices):
 X_train, Y_train = load_doctor_data(indices=train_ind)
 X_val, Y_val = load_doctor_data(indices=val_ind)
 
+print(X_train.shape)
+print(X_val.shape)
+
 seed = 1
 train_datagen = ImageDataGenerator(
     rotation_range=20,
@@ -124,5 +127,6 @@ unet.fit_generator(
         steps_per_epoch=num_batches_in_epoch,
         epochs=epochs,
         validation_data=(X_val, Y_val),
-        callbacks=[cp, es, tbc]
+        callbacks=[cp, es, tbc],
+        verbose=1
 )
