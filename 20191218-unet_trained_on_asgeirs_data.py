@@ -22,7 +22,7 @@ inds = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 16, 17, 18, 19, 20, 21, 22, 
 # Setup the model
 unet = unet_dong_et_al2(input_size=input_size, num_classes=2, lr=lr, loss='categorical_crossentropy', metrics=metrics)
 
-base_path ='/SU-HGG-SkullStripped/'
+base_path ='/SU-HGG-SkullStripped'
 
 np.random.seed(42)
 inds = np.array(inds)
