@@ -68,18 +68,19 @@ def load_doctor_data(indices):
             mask = np.sum(Y.reshape(org_shape[0], -1), axis=1) > 0
             samples_in_patient = sum(mask)
 
+            temp = Y[mask, :, :]
+            temp = K.eval(K.one_hot(temp, num_classes=2))
             data.append(X[mask, :, :])
-            labels.append(Y[mask, :, :])
+            labels.append(temp)
             lens.append(samples_in_patient)
             inds.append(i)
         except:
             next
 
-    X = np.concatenate(data, axis=0)
-    Y = np.concatenate(labels, axis=0)
-    X = np.expand_dims(X, axis=3)
-    Y = K.eval(K.one_hot(Y, num_classes=2))
-    return X, Y
+    X_fin = np.concatenate(data, axis=0)
+    Y_fin = np.concatenate(labels, axis=0)
+    X_fin = np.expand_dims(X_fin, axis=3)
+    return X_fin, Y_fin
 
 X_train, Y_train = load_doctor_data(indices=train_ind)
 X_val, Y_val = load_doctor_data(indices=val_ind)
