@@ -8,7 +8,7 @@ from keras.callbacks import ModelCheckpoint, EarlyStopping, TensorBoard
 from keras.preprocessing.image import ImageDataGenerator
 import tensorflow.keras as keras
 
-input_size = (256, 256, 1)
+input_size = (176, 176, 1)
 metrics = [dice, dice_binary_metric, 'accuracy']
 
 batch_size = 2
