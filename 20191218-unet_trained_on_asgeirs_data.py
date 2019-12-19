@@ -11,7 +11,7 @@ import tensorflow.keras as keras
 input_size = (256, 256, 1)
 metrics = [dice, dice_binary_metric, 'accuracy']
 
-batch_size = 8
+batch_size = 2
 lr = 1e-4
 epochs = 100
 total_num_slices = 1.5e4
