@@ -1404,5 +1404,95 @@ def convert_brats_to_asgeir(Y):
     Y_converted = np.concatenate((new_background, tumor_core), axis=3)
     return Y_converted
 
+def sensor_fused_unet_v2(input_size, lr, metrics, num_classes):
+    conv_kwargs = {
+        'strides': (1, 1),
+        'padding': 'same',
+        'activation': 'relu',
+        'kernel_initializer': 'he_normal'
+    }
+    conv_transpose_kwargs = {
+        'strides': (2, 2),
+        'kernel_initializer': 'he_normal'
+    }
+    conv_kwargs_fin = {
+        'strides': (1, 1),
+        'padding': 'same',
+        'activation': 'relu',
+        'kernel_initializer': 'he_normal'
+    }
+    pooling_kwargs = {
+        'pool_size': (2, 2)
+    }
+    num_channels = input_size[-1]
+    input = Input(shape=input_size)
+
+    branch_outputs = []
+    for i in range(num_channels):
+        # Slicing the ith channel:
+        in_ = Lambda(lambda x: x[:, :, :, i:(i+1)])(input)
+
+        # Setting up your per-channel layers (replace with actual sub-models):
+        conv1 = Conv2D(32, (3, 3), input_shape=(176, 176, 1), **conv_kwargs)(in_)
+        conv1 = Conv2D(32, (3, 3), input_shape=(176, 176, 1), **conv_kwargs)(conv1)
+        pool1 = MaxPooling2D(**pooling_kwargs)(conv1)
+
+        conv2 = Conv2D(64, (3, 3), **conv_kwargs)(pool1)
+        conv2 = Conv2D(64, (3, 3), **conv_kwargs)(conv2)
+        pool2 = MaxPooling2D(pool_size=(2, 2))(conv2)
+
+        conv3 = Conv2D(128, (3, 3), **conv_kwargs)(pool2)
+        conv3 = Conv2D(128, (3, 3), **conv_kwargs)(conv3)
+        pool3 = MaxPooling2D(pool_size=(2, 2))(conv3)
+
+        conv4 = Conv2D(256, (3, 3), **conv_kwargs)(pool3)
+        conv4 = Dropout(0.2)(conv4)
+        conv4 = Conv2D(256, (3, 3), **conv_kwargs)(conv4)
+        conv4 = Dropout(0.2)(conv4)
+        pool4 = MaxPooling2D(pool_size=(2, 2))(conv4)
+
+        conv5 = Conv2D(512, (3, 3), padding='same')(pool4)
+        conv5 = Dropout(0.2)(conv5)
+        conv5 = Conv2D(512, (3, 3), padding='same')(conv5)
+        conv5 = Dropout(0.2)(conv5)
+
+        up6 = Conv2DTranspose(128, (2, 2), **conv_transpose_kwargs)(conv5)
+        merge6 = concatenate([conv4, up6], axis=3)
+        conv6 = Conv2D(256, (3, 3), **conv_kwargs)(merge6)
+        conv6 = Dropout(0.2)(conv6)
+        conv6 = Conv2D(256, (3, 3), **conv_kwargs)(conv6)
+        conv6 = Dropout(0.2)(conv6)
+
+        up7 = Conv2DTranspose(128, (2, 2), **conv_transpose_kwargs)(conv6)
+        merge7 = concatenate([conv3, up7], axis=3)
+        conv7 = Conv2D(128, (3, 3), **conv_kwargs)(merge7)
+        conv7 = Conv2D(128, (3, 3), **conv_kwargs)(conv7)
+
+        up8 = Conv2DTranspose(128, (2, 2), **conv_transpose_kwargs)(conv7)
+        merge8 = concatenate([conv2, up8], axis=3)
+        conv8 = Conv2D(64, (3, 3), **conv_kwargs)(merge8)
+        conv8 = Conv2D(64, (3, 3), **conv_kwargs)(conv8)
+
+        up9 = Conv2DTranspose(128, (2, 2), **conv_transpose_kwargs)(conv8)
+        merge9 = concatenate([conv1, up9], axis=3)
+        conv9 = Conv2D(64, (3, 3), **conv_kwargs)(merge9)
+        conv9 = Conv2D(64, (3, 3), **conv_kwargs)(conv9)
+
+        branch_outputs.append(conv9)
+
+    # Concatenating together the per-channel results:
+    out = Concatenate()(branch_outputs)
+
+    # Adding some further layers (replace or remove with your architecture):
+    out = Conv2D(256, (3, 3), **conv_kwargs)(out)
+    out = Conv2D(256, (3, 3), **conv_kwargs)(out)
+    out = Conv2D(num_classes, (1, 1), **conv_kwargs)(out)
+    out = Activation('softmax')(out)
+
+    # Building model:
+    model = Model(inputs=input, outputs=out)
+    model.compile(optimizer=Adam(lr=lr), loss='categorical_crossentropy', metrics=metrics)
+    return model
+
 print('Finished')
 print_memory_use()
