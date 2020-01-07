@@ -6,6 +6,7 @@ import pickle
 from keras.callbacks import ModelCheckpoint, EarlyStopping, TensorBoard
 from keras.preprocessing.image import ImageDataGenerator
 import tensorflow.keras as keras
+import keras.backend as K
 
 modalities = {
     't1': 0,
@@ -16,7 +17,7 @@ modalities = {
 
 input_size = (176, 176, 1)
 metrics = [dice, dice_en_metric, dice_core_metric, dice_whole_metric, 'accuracy']
-train_ind, val_ind = create_train_test_split()
+train_ind, val_ind, _ = create_train_test_split()
 
 batch_size = 16
 lr = 1e-4
