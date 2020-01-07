@@ -26,7 +26,7 @@ seed = 1
 num_batches_in_epoch = int(total_num_slices // batch_size)
 
 for mod in modalities:
-    unet = unet_dong_small(input_size=input_size, num_classes=4, lr=lr, loss='categorical_crossentropy',
+    unet = unet_dong_each_mod(input_size=input_size, num_classes=4, lr=lr, loss='categorical_crossentropy',
                            metrics=metrics)
     X_train, Y_train = load_patients_numpy("data_numpy_separate_patients_original_size", train_ind, cropping=True)
     X_val, Y_val = load_patients_numpy("data_numpy_separate_patients_original_size", val_ind, cropping=True)
