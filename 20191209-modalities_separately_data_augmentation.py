@@ -73,3 +73,4 @@ for mod in modalities:
             epochs=epochs,
             validation_data=(X_val, Y_val),
             callbacks=[cp, es, tbc])
+    K.clear_session()
