@@ -26,10 +26,16 @@ unet_t1ce = unet_dong_each_mod(input_size=input_size_small, num_classes=4, lr=lr
 unet_t2 = unet_dong_each_mod(input_size=input_size_small, num_classes=4, lr=lr, loss='categorical_crossentropy', metrics=metrics)
 unet_flair = unet_dong_each_mod(input_size=input_size_small, num_classes=4, lr=lr, loss='categorical_crossentropy', metrics=metrics)
 
+'''
 t1_weights = '20200107-separately_trained_weights_sensor_fusion/20200107-102802-t1-lr-0.0001-n-79-dong_small.hdf5'
 t1ce_weights = "20200107-separately_trained_weights_sensor_fusion/20200107-102838-t1ce-lr-0.0001-n-79-dong_small.hdf5"
 t2_weights = "20200107-separately_trained_weights_sensor_fusion/20200107-102913-t2-lr-0.0001-n-79-dong_small.hdf5"
 flair_weights = "20200107-separately_trained_weights_sensor_fusion/20200107-102947-flair-lr-0.0001-n-79-dong_small.hdf5"
+'''
+t1_weights = '20200107-202317-t1-lr-0.0001-n-15539-dong_small.hdf5'
+t1ce_weights = "20200107-123438-t1ce-lr-0.0001-n-15539-dong_small.hdf5"
+t2_weights = "20200108-110818-t2-lr-0.0001-n-15539-dong_small.hdf5"
+flair_weights = "20200108-060927-flair-lr-0.0001-n-15539-dong_small.hdf5"
 
 unet_t1.load_weights(t1_weights)
 unet_t1ce.load_weights(t1ce_weights)
