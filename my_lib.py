@@ -1577,5 +1577,60 @@ def sensor_fused_unet_v2(input_size, lr, metrics, num_classes):
     model.compile(optimizer=Adam(lr=lr), loss='categorical_crossentropy', metrics=metrics)
     return model
 
+def sensor_fused_unet_v3(m_t1, m_t1ce, m_t2, m_flair, lr, loss, metrics):
+    kernel_size = 3
+    conv_kwargs = {
+        'strides': (1, 1),
+        'padding': 'same',
+        'activation': 'relu',
+        'kernel_initializer': 'he_normal',
+        'kernel_regularizer': l2(0.001)
+    }
+    conv_transpose_kwargs = {
+        'strides': (2, 2),
+        'kernel_initializer': 'he_normal',
+        'kernel_regularizer': l2(0.001)
+    }
+    conv_kwargs_fin = {
+        'strides': (1, 1),
+        'padding': 'same',
+        'activation': 'relu',
+        'kernel_initializer': 'he_normal',
+        'kernel_regularizer': l2(0.001)
+    }
+    pooling_kwargs = {
+        'pool_size': (2, 2),
+        'padding': 'valid'
+    }
+    
+    m2_t1 = Model(m_t1.input, m_t1.layers[-3].output)
+    m2_t1.trainable = False
+    m2_t1ce = Model(m_t1ce.input, m_t1ce.layers[-3].output)
+    m2_t1ce.trainable = False
+    m2_t2 = Model(m_t2.input, m_t2.layers[-3].output)
+    m2_t2.trainable = False
+    m2_flair = Model(m_flair.input, m_flair.layers[-3].output)
+    m2_flair.trainable = False
+    
+    input_ = Input((176, 176, 4))
+    split = Lambda(lambda x: tf.split(x,num_or_size_splits=4,axis=3))(input_)
+    
+    output_t1 = m2_t1(split[0])
+    output_t1ce = m2_t1ce(split[1])
+    output_t2 = m2_t2(split[2])
+    output_flair = m2_flair(split[3])
+    
+    tot_output = Concatenate(axis=-1)([output_t1, output_t1ce, output_t2, output_flair])
+    
+    out = Conv2D(256, (3, 3), **conv_kwargs)(tot_output)
+    out = Conv2D(256, (3, 3), **conv_kwargs)(out)
+    out = Conv2D(4, (1, 1), **conv_kwargs)(out)
+    out = Activation('softmax')(out)
+    
+    model = Model(input=input_, output=out)
+    model.compile(optimizer=Adam(lr=lr), loss=loss, metrics=metrics)
+    return model
+
+
 print('Finished')
 print_memory_use()
