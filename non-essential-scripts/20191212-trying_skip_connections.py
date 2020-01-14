@@ -1,4 +1,5 @@
 from my_lib import *
+from old_functionality import *
 from metrics import *
 from keras import initializers
 import datetime
@@ -10,9 +11,9 @@ import tensorflow.keras as keras
 input_size = (176, 176, 4)
 metrics = [dice, dice_en_metric, dice_core_metric, dice_whole_metric, 'accuracy']
 
-train_ind, val_ind = create_train_test_split()
+train_ind, val_ind, _ = create_train_test_split()
 
-batch_size = 16
+batch_size = 8
 lr = 1e-4
 epochs = 100
 total_num_slices = 1.5e4
@@ -20,7 +21,7 @@ seed = 1
 num_batches_in_epoch = int(total_num_slices // batch_size)
 
 # Setup the model
-unet = unet_dong_et_al2(input_size=input_size, num_classes=4, lr=lr, loss=weighted_log_loss, metrics=metrics)
+unet = unet_res(input_size=input_size, num_classes=4, lr=lr, loss='categorical_crossentropy', metrics=metrics)
 
 X_train, Y_train = load_patients_numpy("data_numpy_separate_patients_original_size", train_ind[0:], cropping=True)
 X_val, Y_val = load_patients_numpy("data_numpy_separate_patients_original_size", val_ind[0:], cropping=True)

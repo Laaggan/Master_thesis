@@ -1,7 +1,0 @@
-{
-    "weights_path": "Training_session_0/session_0_weights.h5",
-    "config_path": "Training_session_0/config_1.json",
-    "samples_used": 90,
-    "keep_training" : false,
-    "history":{"training_samples_used" : 0, "loss":[], "val_loss":[]}
-}

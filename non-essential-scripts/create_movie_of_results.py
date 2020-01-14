@@ -1,4 +1,5 @@
 from my_lib import *
+from old_functionality import *
 from metrics import *
 import os
 from keras.utils import plot_model

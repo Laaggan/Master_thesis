@@ -1,4 +1,5 @@
 import numpy as np
+from old_functionality import *
 import matplotlib.pyplot as plt
 
 # Kernel 1 is a vertical line detector

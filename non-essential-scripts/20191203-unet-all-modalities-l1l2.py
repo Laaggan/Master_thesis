@@ -1,4 +1,5 @@
 from my_lib import *
+from old_functionality import *
 from metrics import *
 from keras import initializers
 import datetime
@@ -13,7 +14,7 @@ modalities = {
     'flair': 3
 }
 # Seems to be a fine learning rate
-lrs = [1e-6, 1e-5, 1e-4, 1e-3, 1e-2]
+lrs = [1e-4]
 batch_size = 16
 # There is 335 patients in total. -> indices [0, 334]
 n = 335
@@ -43,8 +44,8 @@ for lr in lrs:
     es = EarlyStopping(monitor='val_loss', mode='auto', verbose=1, patience=10)
     tbc = TensorBoard(log_dir=log_dir)
 
-    metrics = [dice_en_metric, 'accuracy']
-    unet = lee_unet2(input_size=input_size, num_classes=4, lr=lr, loss='categorical_crossentropy', metrics=metrics)
+    metrics = [dice_en_metric, dice_whole_metric, dice_core_metric, dice, 'accuracy']
+    unet = lee_unet2_l1l2(input_size=input_size, num_classes=4, lr=lr, loss='categorical_crossentropy', metrics=metrics)
 
     X_train = X_train.reshape(-1, H, W, 4)
     Y_train = Y_train.reshape(-1, H, W, 4)

@@ -1,4 +1,5 @@
 from my_lib import *
+from old_functionality import *
 from metrics import *
 from keras import initializers
 import datetime
@@ -20,7 +21,7 @@ seed = 1
 num_batches_in_epoch = int(total_num_slices // batch_size)
 
 # Setup the model
-unet = unet_res(input_size=input_size, num_classes=2, lr=lr, loss='categorical_crossentropy', metrics=metrics)
+unet = unet_dong_et_al2(input_size=input_size, num_classes=2, lr=lr, loss='categorical_crossentropy', metrics=metrics)
 
 X_train, Y_train = load_patients_numpy("data_numpy_separate_patients_original_size", train_ind[0:], cropping=True)
 X_val, Y_val = load_patients_numpy("data_numpy_separate_patients_original_size", val_ind[0:], cropping=True)
@@ -56,9 +57,9 @@ label_generator = train_datagen.flow(
 
 # Where to save logs and weights
 weights_path = datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + '-all-lr-' + str(lr)\
-               + '-n-' + str(X_train.shape[0]) + "-asgeir_resnet.hdf5"
+               + '-n-' + str(X_train.shape[0]) + "-asgeir.hdf5"
 log_dir = "logs/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + "-all" \
-          + '-lr-' + str(lr) + '-n-' + str(X_train.shape[0]) + 'asgeir_resnet'
+          + '-lr-' + str(lr) + '-n-' + str(X_train.shape[0]) + 'asgeir'
 
 cp = ModelCheckpoint(weights_path, save_best_only=True, monitor='val_loss', mode='auto', verbose=1, period=1)
 es = EarlyStopping(monitor='val_loss', mode='auto', verbose=1, patience=10)

@@ -1,5 +1,4 @@
 from create_movie_of_results import create_movie
-import numpy as np
 from metrics import *
 from my_lib import *
 
