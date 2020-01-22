@@ -32,7 +32,7 @@ from keras.activations import *
 
 def print_memory_use():
     '''
-    Function which prints current python memory usage
+    Function which prints current python memory usage in megabytes
     '''
     process = psutil.Process(os.getpid())
     print(process.memory_info().rss/1e9)
@@ -51,6 +51,11 @@ mapping2 = {
 }
 
 def create_train_test_split():
+    '''
+    Function which creates a train-, validation- and test split for 335 samples with the
+    proportions 70%, 15%, 15%
+    :return: A tuple containing 3 lists each with the indices of train, validation and test set respectively
+    '''
     # There is 335 patients in total. -> indices [0, 334]
     n = 335
     np.random.seed(42)
@@ -135,13 +140,6 @@ def load_patients_numpy(path_to_folder, indices, cropping=False):
         H = y_down - y_up
         W = x_right - x_left
 
-        '''
-        if count % 25 == 0:
-            print('Patient:', count)
-
-        p = np.random.rand
-
-        '''
         if start:
             data = np.load(path_to_folder + '/patient-' + str(i) + '.npz')
             X = data['arr_0'][0]
@@ -243,6 +241,19 @@ def load_patients(i, j, base_path="", rescale=None):
     image_data = np.moveaxis(image_data, -1, 0)
     image_data = np.moveaxis(image_data, 1, 3)
     return (image_data, OHE_labels, patients)
+
+def convert_brats_to_asgeir(Y):
+    '''
+    Convert the BraTS-data to binary classification task of the tumor core
+    :param Y: The labels which are to be converted
+    :return: Returns the converted labels
+    '''
+    tumor_core = Y[:, :, :, 1] + Y[:, :, :, 3]
+    tumor_core = np.expand_dims(tumor_core, axis=3)
+    new_background = Y[:, :, :, 0] + Y[:, :, :, 2]
+    new_background = np.expand_dims(new_background, axis=3)
+    Y_converted = np.concatenate((new_background, tumor_core), axis=3)
+    return Y_converted
 
 def conv_block(input_, num_kernels, kernel_size, act_func, drop_rate):
     conv = Conv2D(num_kernels, kernel_size, activation=act_func, padding='same', kernel_initializer='he_normal')(input_)
@@ -457,7 +468,17 @@ def unet_dong_et_al(input_size, num_classes, lr, metrics, drop_rate, loss, pretr
         unet.load_weights(pretrained_weights)
     return unet
 
-def unet_dong_et_al2(input_size, num_classes, lr, metrics, loss, pretrained_weights=None):
+def single_stream_unet(input_size, num_classes, lr, metrics, loss, pretrained_weights=None):
+    '''
+    Function to build U-Net
+    :param input_size: A tuple that specifies the input shape to the network
+    :param num_classes: How many classes the classification problem at hand has
+    :param lr: learning rate to use during optimization
+    :param metrics: a list of the metrics to use
+    :param loss: specify loss function either with a string which keras supports or with a function
+    :param pretrained_weights: If there exists pretrained weights these can optionally be passed
+    :return: Returns a compiled U-Net
+    '''
     kernel_size = 3
     conv_kwargs = {
         'strides': (1, 1),
@@ -540,7 +561,17 @@ def unet_dong_et_al2(input_size, num_classes, lr, metrics, loss, pretrained_weig
         unet.load_weights(pretrained_weights)
     return unet
 
-def unet_dong_each_mod(input_size, num_classes, lr, metrics, loss, pretrained_weights=None):
+def unet_dong_single_mod(input_size, num_classes, lr, metrics, loss, pretrained_weights=None):
+    '''
+    Function to build U-Net
+    :param input_size: A tuple that specifies the input shape to the network
+    :param num_classes: How many classes the classification problem at hand has
+    :param lr: learning rate to use during optimization
+    :param metrics: a list of the metrics to use
+    :param loss: specify loss function either with a string which keras supports or with a function
+    :param pretrained_weights: If there exists pretrained weights these can optionally be passed
+    :return: Returns a compiled U-Net
+    '''
     kernel_size = 3
     conv_kwargs = {
         'strides': (1, 1),
@@ -624,6 +655,16 @@ def unet_dong_each_mod(input_size, num_classes, lr, metrics, loss, pretrained_we
     return unet
 
 def unet_dong_small(input_size, num_classes, lr, metrics, loss, pretrained_weights=None):
+    '''
+    Function to build U-Net
+    :param input_size: A tuple that specifies the input shape to the network
+    :param num_classes: How many classes the classification problem at hand has
+    :param lr: learning rate to use during optimization
+    :param metrics: a list of the metrics to use
+    :param loss: specify loss function either with a string which keras supports or with a function
+    :param pretrained_weights: If there exists pretrained weights these can optionally be passed
+    :return: Returns a compiled U-Net
+    '''
     kernel_size = 3
     conv_kwargs = {
         'strides': (1, 1),
@@ -706,6 +747,16 @@ def zscore_norm(MRI):
     return MRI_f.reshape(MRI.shape)
 
 def unet_res(input_size, num_classes, lr, metrics, loss, pretrained_weights=None):
+    '''
+    Function to build U-Net
+    :param input_size: A tuple that specifies the input shape to the network
+    :param num_classes: How many classes the classification problem at hand has
+    :param lr: learning rate to use during optimization
+    :param metrics: a list of the metrics to use
+    :param loss: specify loss function either with a string which keras supports or with a function
+    :param pretrained_weights: If there exists pretrained weights these can optionally be passed
+    :return: Returns a compiled U-Net
+    '''
     kernel_size = 3
     conv_kwargs = {
         'strides': (1, 1),
@@ -823,30 +874,33 @@ def unet_res(input_size, num_classes, lr, metrics, loss, pretrained_weights=None
         unet.load_weights(pretrained_weights)
     return unet
 
-def convert_brats_to_asgeir(Y):
-    tumor_core = Y[:, :, :, 1] + Y[:, :, :, 3]
-    tumor_core = np.expand_dims(tumor_core, axis=3)
-    new_background = Y[:, :, :, 0] + Y[:, :, :, 2]
-    new_background = np.expand_dims(new_background, axis=3)
-    Y_converted = np.concatenate((new_background, tumor_core), axis=3)
-    return Y_converted
-
-def sensor_fused_unet_v2(input_size, lr, metrics, num_classes):
+def multi_stream_unet_end_to_end(input_size, lr, metrics, num_classes):
+    '''
+    Function to build U-Net
+    :param input_size: A tuple that specifies the input shape to the network
+    :param num_classes: How many classes the classification problem at hand has
+    :param lr: learning rate to use during optimization
+    :param metrics: a list of the metrics to use
+    :return: Returns a compiled U-Net
+    '''
     conv_kwargs = {
         'strides': (1, 1),
         'padding': 'same',
         'activation': 'relu',
-        'kernel_initializer': 'he_normal'
+        'kernel_initializer': 'he_normal',
+        'kernel_regularizer': l2(0.001)
     }
     conv_transpose_kwargs = {
         'strides': (2, 2),
-        'kernel_initializer': 'he_normal'
+        'kernel_initializer': 'he_normal',
+        'kernel_regularizer': l2(0.001)
     }
     conv_kwargs_fin = {
         'strides': (1, 1),
         'padding': 'same',
         'activation': 'relu',
-        'kernel_initializer': 'he_normal'
+        'kernel_initializer': 'he_normal',
+        'kernel_regularizer': l2(0.001)
     }
     pooling_kwargs = {
         'pool_size': (2, 2)
@@ -873,22 +927,20 @@ def sensor_fused_unet_v2(input_size, lr, metrics, num_classes):
         pool3 = MaxPooling2D(pool_size=(2, 2))(conv3)
 
         conv4 = Conv2D(256, (3, 3), **conv_kwargs)(pool3)
-        conv4 = Dropout(0.2)(conv4)
+        conv4 = Dropout(0.1)(conv4)
         conv4 = Conv2D(256, (3, 3), **conv_kwargs)(conv4)
-        conv4 = Dropout(0.2)(conv4)
+        conv4 = Dropout(0.1)(conv4)
         pool4 = MaxPooling2D(pool_size=(2, 2))(conv4)
 
         conv5 = Conv2D(512, (3, 3), padding='same')(pool4)
-        conv5 = Dropout(0.2)(conv5)
+        conv5 = Dropout(0.1)(conv5)
         conv5 = Conv2D(512, (3, 3), padding='same')(conv5)
-        conv5 = Dropout(0.2)(conv5)
+        conv5 = Dropout(0.1)(conv5)
 
         up6 = Conv2DTranspose(128, (2, 2), **conv_transpose_kwargs)(conv5)
         merge6 = concatenate([conv4, up6], axis=3)
         conv6 = Conv2D(256, (3, 3), **conv_kwargs)(merge6)
-        conv6 = Dropout(0.2)(conv6)
         conv6 = Conv2D(256, (3, 3), **conv_kwargs)(conv6)
-        conv6 = Dropout(0.2)(conv6)
 
         up7 = Conv2DTranspose(128, (2, 2), **conv_transpose_kwargs)(conv6)
         merge7 = concatenate([conv3, up7], axis=3)
@@ -921,7 +973,17 @@ def sensor_fused_unet_v2(input_size, lr, metrics, num_classes):
     model.compile(optimizer=Adam(lr=lr), loss='categorical_crossentropy', metrics=metrics)
     return model
 
-def sensor_fused_unet_v3(m_t1, m_t1ce, m_t2, m_flair, lr, loss, metrics):
+def multi_stream_unet_trained_sequentially(m_t1, m_t1ce, m_t2, m_flair, lr, loss, metrics):
+    '''
+    :param m_t1: Compiled "unet_dong_each_mod" U-Net with weights trained on T1 modality
+    :param m_t1ce:  Compiled "unet_dong_each_mod" U-Net with weights trained on T1ce modality
+    :param m_t2: Compiled "unet_dong_each_mod" U-Net with weights trained on T2 modality
+    :param m_flair: Compiled "unet_dong_each_mod" U-Net with weights trained on flair modality
+    :param lr: Learning rate to be used during optimization
+    :param loss: Loss function to be used during optimization
+    :param metrics: A list of the metrics to be saved during optimization
+    :return:
+    '''
     kernel_size = 3
     conv_kwargs = {
         'strides': (1, 1),
@@ -957,7 +1019,7 @@ def sensor_fused_unet_v3(m_t1, m_t1ce, m_t2, m_flair, lr, loss, metrics):
     m2_flair.trainable = False
     
     input_ = Input((176, 176, 4))
-    split = Lambda(lambda x: tf.split(x,num_or_size_splits=4,axis=3))(input_)
+    split = Lambda(lambda x: tf.split(x, num_or_size_splits=4, axis=3))(input_)
     
     output_t1 = m2_t1(split[0])
     output_t1ce = m2_t1ce(split[1])
@@ -974,7 +1036,3 @@ def sensor_fused_unet_v3(m_t1, m_t1ce, m_t2, m_flair, lr, loss, metrics):
     model = Model(input=input_, output=out)
     model.compile(optimizer=Adam(lr=lr), loss=loss, metrics=metrics)
     return model
-
-
-print('Finished')
-print_memory_use()
