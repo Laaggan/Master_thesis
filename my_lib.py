@@ -32,7 +32,7 @@ from keras.activations import *
 
 def print_memory_use():
     '''
-    Function which prints current python memory usage
+    Function which prints current python memory usage in megabytes
     '''
     process = psutil.Process(os.getpid())
     print(process.memory_info().rss/1e9)
@@ -51,6 +51,11 @@ mapping2 = {
 }
 
 def create_train_test_split():
+    '''
+    Function which creates a train-, validation- and test split for 335 samples with the
+    proportions 70%, 15%, 15%
+    :return: A tuple containing 3 lists each with the indices of train, validation and test set respectively
+    '''
     # There is 335 patients in total. -> indices [0, 334]
     n = 335
     np.random.seed(42)
@@ -117,48 +122,6 @@ def OHE_uncoding(y, mapping):
         temp[ind] = label
     return temp
 
-def reset_config(config, config_path=None, weights_path=None):
-    new_config = config
-    if weights_path:
-        assert type(weights_path) == str, 'The weight path must be a string'
-        new_config['weights_path'] = weights_path
-    if config_path:
-        assert type(config_path) == str, 'The config path must be a string'
-        new_config['config_path'] = config_path
-    new_config['history']['training_samples_used'] = 0
-    new_config['history']['loss'] = []
-    new_config['history']['val_loss'] = []
-    new_config['keep_training'] = False
-
-class CallbackJSON(Callback):
-    """ CallbackJSON descends from Callback
-        and is used to write the number of training samples that the model has been trained on
-        and the loss for a epoch
-    """
-    def __init__(self, config):
-        """Save params in constructor
-        config: Is a dictionary loaded from a JSON file which is used to keep track of training
-        """
-        self.config = config
-        self.config_path = config['config_path']
-
-    def on_epoch_end(self, epoch, logs):
-        """
-        Updates the history of the config dict and saves it to a file
-        """
-        # How many effective training samples have been used
-        self.config['history']['training_samples_used'] += self.config['samples_used']
-
-        # Logs the loss of the current epoch
-        self.config['history']['loss'].append(logs['loss'])
-        #fixme: add the same code but for "val_loss"
-        self.config['history']['val_loss'].append(logs['val_loss'])
-
-        print_memory_use()
-        # Save new config file
-        with open(self.config_path, "w") as f:
-            f.write(json.dumps(self.config))
-
 def load_patients_numpy(path_to_folder, indices, cropping=False):
     '''
     :param path_to_folder: The path to the folder which contain the patients saved one by one in .npz format
@@ -177,13 +140,6 @@ def load_patients_numpy(path_to_folder, indices, cropping=False):
         H = y_down - y_up
         W = x_right - x_left
 
-        '''
-        if count % 25 == 0:
-            print('Patient:', count)
-
-        p = np.random.rand
-
-        '''
         if start:
             data = np.load(path_to_folder + '/patient-' + str(i) + '.npz')
             X = data['arr_0'][0]
@@ -207,264 +163,6 @@ def load_patients_numpy(path_to_folder, indices, cropping=False):
             Y = np.concatenate((Y, temp_Y), axis=0)
 
     return X, Y
-
-def load_patients_numpy_aug(path_to_folder, indices, cropping=False):
-    '''
-    :param path_to_folder: The path to the folder which contain the patients saved one by one in .npz format
-    :param indices: A list with the indices, range [0, 335], which one wants to load to memory
-    :return: returns one numpy array with training data and one numpy array with the corresponding one hot
-    encoded labels.
-    '''
-    start = True
-    for count, i in enumerate(indices):
-        if count % 10 == 0:
-            print("Patient: ", count)
-        y_up = 40
-        y_down = 216
-        x_left = 40
-        x_right = 216
-        H = y_down - y_up
-        W = x_right - x_left
-
-
-        if count % 10 == 0:
-            print('Patient:', count)
-
-        p = np.random.rand()
-
-        if start:
-            data = np.load(path_to_folder + '/patient-' + str(i) + '.npz')
-            X = data['arr_0'][0]
-            Y = data['arr_0'][1]
-
-            if p > 0.5:
-                X = np.flip(X)
-                Y = np.flip(Y)
-
-            if cropping:
-                X = X[:, x_left:x_right, y_up:y_down, :]
-                Y = Y[:, x_left:x_right, y_up:y_down, :]
-
-            start = False
-        else:
-            data = np.load(path_to_folder + '/patient-' + str(i) + '.npz')
-            temp_X = data['arr_0'][0]
-            temp_Y = data['arr_0'][1]
-
-            if p > 0.5:
-                temp_X = np.flip(temp_X)
-                temp_Y = np.flip(temp_Y)
-
-            if cropping:
-                temp_X = temp_X[:, x_left:x_right, y_up:y_down, :]
-                temp_Y = temp_Y[:, x_left:x_right, y_up:y_down, :]
-
-            X = np.concatenate((X, temp_X), axis=0)
-            Y = np.concatenate((Y, temp_Y), axis=0)
-
-    return X, Y
-
-
-def load_patients_new_again(i, j, modalities, slices=None, base_path=""):
-    # Modalities 't1', 't1ce', 't2', 'flair'
-    assert j >= i, 'j>i has to be true, you have given an invalid range of patients.'
-    n = len(modalities)
-    '''
-    # What Carl's algorithm output
-    y_up = 40
-    y_down = 212
-    x_left = 29
-    x_right = 220
-    '''
-    y_up = 40
-    y_down = 216
-    x_left = 40
-    x_right = 216
-
-    H = y_down-y_up
-    W = x_right-x_left
-
-    path = base_path + "MICCAI_BraTS_2019_Data_Training/*/*/*"
-
-    wild_t1 = path + "_t1.nii.gz"
-    wild_t1ce = path + "_t1ce.nii.gz"
-    wild_t2 = path + "_t2.nii.gz"
-    wild_flair = path + "_flair.nii.gz"
-    wild_gt = path + "_seg.nii.gz"
-
-    t1_paths = glob.glob(wild_t1)
-    t1ce_paths = glob.glob(wild_t1ce)
-    t2_paths = glob.glob(wild_t2)
-    flair_paths = glob.glob(wild_flair)
-    gt_paths = glob.glob(wild_gt)
-
-    num_non_empty_slices = 0
-
-    for x in range(i, j):
-        for y in slices[str(x)]:
-            num_non_empty_slices += 1
-
-    image_data = np.zeros((4, W, H, num_non_empty_slices))
-    labels = np.zeros((num_non_empty_slices, W, H))
-    OHE_labels = np.zeros((num_non_empty_slices, W, H, 4))
-    next_ind = 0
-
-    for i in range(i, j):
-        print('Patient: ' + str(i))
-        curr_ind = slices[str(i)]
-
-        path_t1 = t1_paths[i]
-        path_t1ce = t1ce_paths[i]
-        path_t2 = t2_paths[i]
-        path_flair = flair_paths[i]
-        path_gt = gt_paths[i]
-
-        img_t1 = nib.load(path_t1)
-        img_t1ce = nib.load(path_t1ce)
-        img_t2 = nib.load(path_t2)
-        img_flair = nib.load(path_flair)
-        img_gt = nib.load(path_gt)
-
-        img_t1 = img_t1.get_fdata()
-        img_t1ce = img_t1ce.get_fdata()
-        img_t2 = img_t2.get_fdata()
-        img_flair = img_flair.get_fdata()
-        img_gt = img_gt.get_fdata()
-
-        img_t1 = img_t1[x_left:x_right, y_up:y_down, :]
-        img_t1ce = img_t1ce[x_left:x_right, y_up:y_down, :]
-        img_t2 = img_t2[x_left:x_right, y_up:y_down, :]
-        img_flair = img_flair[x_left:x_right, y_up:y_down, :]
-        img_gt = img_gt[x_left:x_right, y_up:y_down, :]
-
-        temp = 0
-        for i, x in enumerate(curr_ind):
-            image_data[0, :, :, next_ind + i] = img_t1[:, :, x]
-            image_data[1, :, :, next_ind + i] = img_t1ce[:, :, x]
-            image_data[2, :, :, next_ind + i] = img_t2[:, :, x]
-            image_data[3, :, :, next_ind + i] = img_flair[:, :, x]
-            labels[next_ind + i, :, :] = img_gt[:, :, x]
-            temp += 1
-        next_ind += temp
-
-    for j in range(next_ind):
-        # shift and scale data
-        image_data[0, :, :, j] = normalize(image_data[0, :, :, j])
-        image_data[1, :, :, j] = normalize(image_data[1, :, :, j])
-        image_data[2, :, :, j] = normalize(image_data[2, :, :, j])
-        image_data[3, :, :, j] = normalize(image_data[3, :, :, j])
-
-        OHE_labels[j, :, :, :] = OHE1(labels[j, :, :], mapping)
-
-    # The last axis will become the first axis
-    image_data = np.moveaxis(image_data, -1, 0)
-    image_data = np.moveaxis(image_data, 1, 3)
-
-    return_image_data = np.zeros((num_non_empty_slices, W, H, n))
-    for i in range(n):
-        temp = modalities[i]
-        if temp == 't1':
-            return_image_data[:, :, :, i] = image_data[:, :, :, 0]
-        if temp == 't1ce':
-            return_image_data[:, :, :, i] = image_data[:, :, :, 1]
-        if temp == 't2':
-            return_image_data[:, :, :, i] = image_data[:, :, :, 2]
-        if temp == 'flair':
-            return_image_data[:, :, :, i] = image_data[:, :, :, 3]
-
-    return (return_image_data, OHE_labels, labels)
-
-def load_patients_new_again_without_cropping(i, j, modalities, slices=None, base_path=""):
-    # Modalities 't1', 't1ce', 't2', 'flair'
-    assert j >= i, 'j>i has to be true, you have given an invalid range of patients.'
-    n = len(modalities)
-
-    path = base_path + "MICCAI_BraTS_2019_Data_Training/*/*/*"
-
-    wild_t1 = path + "_t1.nii.gz"
-    wild_t1ce = path + "_t1ce.nii.gz"
-    wild_t2 = path + "_t2.nii.gz"
-    wild_flair = path + "_flair.nii.gz"
-    wild_gt = path + "_seg.nii.gz"
-
-    t1_paths = glob.glob(wild_t1)
-    t1ce_paths = glob.glob(wild_t1ce)
-    t2_paths = glob.glob(wild_t2)
-    flair_paths = glob.glob(wild_flair)
-    gt_paths = glob.glob(wild_gt)
-
-    H = 240
-    W = 240
-    num_non_empty_slices = 0
-
-    for x in range(i, j):
-        for y in slices[str(x)]:
-            num_non_empty_slices += 1
-
-    image_data = np.zeros((4, W, H, num_non_empty_slices))
-    labels = np.zeros((num_non_empty_slices, W, H))
-    OHE_labels = np.zeros((num_non_empty_slices, W, H, 4))
-    next_ind = 0
-
-    for i in range(i, j):
-        print('Patient: ' + str(i))
-        curr_ind = slices[str(i)]
-
-        path_t1 = t1_paths[i]
-        path_t1ce = t1ce_paths[i]
-        path_t2 = t2_paths[i]
-        path_flair = flair_paths[i]
-        path_gt = gt_paths[i]
-
-        img_t1 = nib.load(path_t1)
-        img_t1ce = nib.load(path_t1ce)
-        img_t2 = nib.load(path_t2)
-        img_flair = nib.load(path_flair)
-        img_gt = nib.load(path_gt)
-
-        img_t1 = img_t1.get_fdata()
-        img_t1ce = img_t1ce.get_fdata()
-        img_t2 = img_t2.get_fdata()
-        img_flair = img_flair.get_fdata()
-        img_gt = img_gt.get_fdata()
-
-        temp = 0
-        for i, x in enumerate(curr_ind):
-            image_data[0, :, :, next_ind + i] = img_t1[:, :, x]
-            image_data[1, :, :, next_ind + i] = img_t1ce[:, :, x]
-            image_data[2, :, :, next_ind + i] = img_t2[:, :, x]
-            image_data[3, :, :, next_ind + i] = img_flair[:, :, x]
-            labels[next_ind + i, :, :] = img_gt[:, :, x]
-            temp += 1
-        next_ind += temp
-
-    for j in range(next_ind):
-        # shift and scale data
-        image_data[0, :, :, j] = normalize(image_data[0, :, :, j])
-        image_data[1, :, :, j] = normalize(image_data[1, :, :, j])
-        image_data[2, :, :, j] = normalize(image_data[2, :, :, j])
-        image_data[3, :, :, j] = normalize(image_data[3, :, :, j])
-
-        OHE_labels[j, :, :, :] = OHE1(labels[j, :, :], mapping)
-
-    # The last axis will become the first axis
-    image_data = np.moveaxis(image_data, -1, 0)
-    image_data = np.moveaxis(image_data, 1, 3)
-
-    return_image_data = np.zeros((num_non_empty_slices, W, H, n))
-    for i in range(n):
-        temp = modalities[i]
-        if temp == 't1':
-            return_image_data[:, :, :, i] = image_data[:, :, :, 0]
-        if temp == 't1ce':
-            return_image_data[:, :, :, i] = image_data[:, :, :, 1]
-        if temp == 't2':
-            return_image_data[:, :, :, i] = image_data[:, :, :, 2]
-        if temp == 'flair':
-            return_image_data[:, :, :, i] = image_data[:, :, :, 3]
-
-    return (return_image_data, OHE_labels, labels)
-
 
 def load_patients(i, j, base_path="", rescale=None):
     '''
@@ -544,20 +242,25 @@ def load_patients(i, j, base_path="", rescale=None):
     image_data = np.moveaxis(image_data, 1, 3)
     return (image_data, OHE_labels, patients)
 
+def convert_brats_to_asgeir(Y):
+    '''
+    Convert the BraTS-data to binary classification task of the tumor core
+    :param Y: The labels which are to be converted
+    :return: Returns the converted labels
+    '''
+    tumor_core = Y[:, :, :, 1] + Y[:, :, :, 3]
+    tumor_core = np.expand_dims(tumor_core, axis=3)
+    new_background = Y[:, :, :, 0] + Y[:, :, :, 2]
+    new_background = np.expand_dims(new_background, axis=3)
+    Y_converted = np.concatenate((new_background, tumor_core), axis=3)
+    return Y_converted
+
 def conv_block(input_, num_kernels, kernel_size, act_func, drop_rate):
     conv = Conv2D(num_kernels, kernel_size, activation=act_func, padding='same', kernel_initializer='he_normal')(input_)
     conv = Conv2D(num_kernels, kernel_size, activation=act_func, padding='same', kernel_initializer='he_normal')(conv)
     drop = Dropout(drop_rate)(conv)
     return conv
-'''
-def conv_block(input_, num_kernels, kernel_size, act_func, drop_rate):
-    argz = [num_kernels, kernel_size]
-    kwargz = {'activation':act_func, 'padding':'same', 'kernel_initializer':'he_normal'}
-    conv = Conv2D(*argz, **kwargz)(input_)
-    conv = Conv2D(*argz, **kwargz)(conv)
-    drop = Dropout(drop_rate)(conv)
-    return conv
-'''
+
 def conv_block_resnet(input_, num_kernels, kernel_size, act_func, drop_rate, input_size):
     argz = [num_kernels, kernel_size]
     kwargz = {
@@ -668,67 +371,6 @@ def unet_depth(pretrained_weights = None, input_size = (256, 256, 1), num_classe
         model.load_weights(pretrained_weights)
     return model
 
-def unet(input_size, num_classes, pretrained_weights=None,
-         learning_rate=1e-4, drop_rate=0.5, metrics=None):
-    inputs = Input(input_size, name='my_placeholder', dtype='float32')
-    conv1 = Conv2D(64, 3, activation='relu', padding='same', kernel_initializer='he_normal')(inputs)
-    conv1 = Conv2D(64, 3, activation='relu', padding='same', kernel_initializer='he_normal')(conv1)
-    pool1 = MaxPooling2D(pool_size=(2, 2))(conv1)
-
-    conv2 = Conv2D(128, 3, activation='relu', padding='same', kernel_initializer='he_normal')(pool1)
-    conv2 = Conv2D(128, 3, activation='relu', padding='same', kernel_initializer='he_normal')(conv2)
-    pool2 = MaxPooling2D(pool_size=(2, 2))(conv2)
-
-    conv3 = Conv2D(256, 3, activation='relu', padding='same', kernel_initializer='he_normal')(pool2)
-    conv3 = Conv2D(256, 3, activation='relu', padding='same', kernel_initializer='he_normal')(conv3)
-    pool3 = MaxPooling2D(pool_size=(2, 2))(conv3)
-
-    conv4 = Conv2D(512, 3, activation='relu', padding='same', kernel_initializer='he_normal')(pool3)
-    conv4 = Conv2D(512, 3, activation='relu', padding='same', kernel_initializer='he_normal')(conv4)
-    drop4 = Dropout(drop_rate)(conv4)
-    pool4 = MaxPooling2D(pool_size=(2, 2))(drop4)
-
-    conv5 = Conv2D(1024, 3, activation='relu', padding='same', kernel_initializer='he_normal')(pool4)
-    conv5 = Conv2D(1024, 3, activation='relu', padding='same', kernel_initializer='he_normal')(conv5)
-    drop5 = Dropout(drop_rate)(conv5)
-
-    up6 = Conv2D(512, 2, activation='relu', padding='same', kernel_initializer='he_normal')(
-        UpSampling2D(size=(2, 2))(drop5))
-    merge6 = concatenate([drop4, up6], axis=3)
-    conv6 = Conv2D(512, 3, activation='relu', padding='same', kernel_initializer='he_normal')(merge6)
-    conv6 = Conv2D(512, 3, activation='relu', padding='same', kernel_initializer='he_normal')(conv6)
-    drop6 = Dropout(drop_rate)(conv6)
-
-    up7 = Conv2D(256, 2, activation='relu', padding='same', kernel_initializer='he_normal')(
-        UpSampling2D(size=(2, 2))(drop6))
-    merge7 = concatenate([conv3, up7], axis=3)
-    conv7 = Conv2D(256, 3, activation='relu', padding='same', kernel_initializer='he_normal')(merge7)
-    conv7 = Conv2D(256, 3, activation='relu', padding='same', kernel_initializer='he_normal')(conv7)
-
-    up8 = Conv2D(128, 2, activation='relu', padding='same', kernel_initializer='he_normal')(
-        UpSampling2D(size=(2, 2))(conv7))
-    merge8 = concatenate([conv2, up8], axis=3)
-    conv8 = Conv2D(128, 3, activation='relu', padding='same', kernel_initializer='he_normal')(merge8)
-    conv8 = Conv2D(128, 3, activation='relu', padding='same', kernel_initializer='he_normal')(conv8)
-
-    up9 = Conv2D(64, 2, activation='relu', padding='same', kernel_initializer='he_normal')(
-        UpSampling2D(size=(2, 2))(conv8))
-    merge9 = concatenate([conv1, up9], axis=3)
-    conv9 = Conv2D(64, 3, activation='relu', padding='same', kernel_initializer='he_normal')(merge9)
-    conv9 = Conv2D(64, 3, activation='relu', padding='same', kernel_initializer='he_normal')(conv9)
-    conv9 = Conv2D(num_classes, 1, activation='relu', padding='same', kernel_initializer='he_normal')(conv9)
-
-    reshape = Reshape((input_size[0] * input_size[1], num_classes),
-                      input_shape=(num_classes, input_size[0], input_size[1]))(conv9)
-    activation = Softmax(axis=-1)(reshape)
-
-    model = Model(inputs=[inputs], outputs=[activation])
-    model.compile(optimizer=Adam(lr=learning_rate), loss='categorical_crossentropy', metrics=metrics)
-    if (pretrained_weights):
-        model.load_weights(pretrained_weights)
-    return model
-
-
 def unet_dong_et_al(input_size, num_classes, lr, metrics, drop_rate, loss, pretrained_weights=None):
     kernel_size = 3
     drop_rate = drop_rate
@@ -826,7 +468,17 @@ def unet_dong_et_al(input_size, num_classes, lr, metrics, drop_rate, loss, pretr
         unet.load_weights(pretrained_weights)
     return unet
 
-def unet_dong_et_al2(input_size, num_classes, lr, metrics, loss, pretrained_weights=None):
+def single_stream_unet(input_size, num_classes, lr, metrics, loss, pretrained_weights=None):
+    '''
+    Function to build U-Net
+    :param input_size: A tuple that specifies the input shape to the network
+    :param num_classes: How many classes the classification problem at hand has
+    :param lr: learning rate to use during optimization
+    :param metrics: a list of the metrics to use
+    :param loss: specify loss function either with a string which keras supports or with a function
+    :param pretrained_weights: If there exists pretrained weights these can optionally be passed
+    :return: Returns a compiled U-Net
+    '''
     kernel_size = 3
     conv_kwargs = {
         'strides': (1, 1),
@@ -909,7 +561,17 @@ def unet_dong_et_al2(input_size, num_classes, lr, metrics, loss, pretrained_weig
         unet.load_weights(pretrained_weights)
     return unet
 
-def unet_dong_each_mod(input_size, num_classes, lr, metrics, loss, pretrained_weights=None):
+def unet_dong_single_mod(input_size, num_classes, lr, metrics, loss, pretrained_weights=None):
+    '''
+    Function to build U-Net
+    :param input_size: A tuple that specifies the input shape to the network
+    :param num_classes: How many classes the classification problem at hand has
+    :param lr: learning rate to use during optimization
+    :param metrics: a list of the metrics to use
+    :param loss: specify loss function either with a string which keras supports or with a function
+    :param pretrained_weights: If there exists pretrained weights these can optionally be passed
+    :return: Returns a compiled U-Net
+    '''
     kernel_size = 3
     conv_kwargs = {
         'strides': (1, 1),
@@ -993,6 +655,16 @@ def unet_dong_each_mod(input_size, num_classes, lr, metrics, loss, pretrained_we
     return unet
 
 def unet_dong_small(input_size, num_classes, lr, metrics, loss, pretrained_weights=None):
+    '''
+    Function to build U-Net
+    :param input_size: A tuple that specifies the input shape to the network
+    :param num_classes: How many classes the classification problem at hand has
+    :param lr: learning rate to use during optimization
+    :param metrics: a list of the metrics to use
+    :param loss: specify loss function either with a string which keras supports or with a function
+    :param pretrained_weights: If there exists pretrained weights these can optionally be passed
+    :return: Returns a compiled U-Net
+    '''
     kernel_size = 3
     conv_kwargs = {
         'strides': (1, 1),
@@ -1064,293 +736,6 @@ def unet_dong_small(input_size, num_classes, lr, metrics, loss, pretrained_weigh
         unet.load_weights(pretrained_weights)
     return unet
 
-def lee_unet(input_size, num_classes, lr, loss, metrics):
-
-    inputs = Input(input_size)
-    conv1 = Conv2D(32, (3, 3), activation='relu', padding='same',
-                   kernel_initializer=initializers.random_normal(stddev=0.01))(inputs)
-    conv1 = Conv2D(32, (3, 3), activation='relu', padding='same',
-                   kernel_initializer=initializers.random_normal(stddev=0.01))(conv1)
-    pool1 = MaxPooling2D(pool_size=(2, 2))(conv1)
-
-    conv2 = Conv2D(64, (3, 3), activation='relu', padding='same',
-                   kernel_initializer=initializers.random_normal(stddev=0.01))(pool1)
-    conv2 = Conv2D(64, (3, 3), activation='relu', padding='same',
-                   kernel_initializer=initializers.random_normal(stddev=0.01))(conv2)
-    pool2 = MaxPooling2D(pool_size=(2, 2))(conv2)
-
-    conv3 = Conv2D(128, (3, 3), activation='relu', padding='same',
-                   kernel_initializer=initializers.random_normal(stddev=0.01))(pool2)
-    conv3 = Conv2D(128, (3, 3), activation='relu', padding='same',
-                   kernel_initializer=initializers.random_normal(stddev=0.01))(conv3)
-    pool3 = MaxPooling2D(pool_size=(2, 2))(conv3)
-
-    conv4 = Conv2D(256, (3, 3), activation='relu', padding='same',
-                   kernel_initializer=initializers.random_normal(stddev=0.01))(pool3)
-    conv4 = Conv2D(256, (3, 3), activation='relu', padding='same',
-                   kernel_initializer=initializers.random_normal(stddev=0.01))(conv4)
-    pool4 = MaxPooling2D(pool_size=(2, 2))(conv4)
-
-    conv5 = Conv2D(512, (3, 3), activation='relu', padding='same',
-                   kernel_initializer=initializers.random_normal(stddev=0.01))(pool4)
-    conv5 = Conv2D(512, (3, 3), activation='relu', padding='same',
-                   kernel_initializer=initializers.random_normal(stddev=0.01))(conv5)
-
-    up6 = concatenate([Conv2DTranspose(256, (2, 2), strides=(2, 2), padding='same',
-                kernel_initializer=initializers.random_normal(stddev=0.01))(conv5),conv4], axis=3)
-    conv6 = Conv2D(256, (3, 3), activation='relu', padding='same',
-                   kernel_initializer=initializers.random_normal(stddev=0.01))(up6)
-    conv6 = Conv2D(256, (3, 3), activation='relu', padding='same',
-                   kernel_initializer=initializers.random_normal(stddev=0.01))(conv6)
-
-    up7 = concatenate([Conv2DTranspose(128, (2, 2), strides=(2, 2), padding='same',
-                kernel_initializer=initializers.random_normal(stddev=0.01))(conv6),conv3], axis=3)
-    conv7 = Conv2D(128, (3, 3), activation='relu', padding='same',
-                   kernel_initializer=initializers.random_normal(stddev=0.01))(up7)
-    conv7 = Conv2D(128, (3, 3), activation='relu', padding='same',
-                   kernel_initializer=initializers.random_normal(stddev=0.01))(conv7)
-
-    up8 = concatenate([Conv2DTranspose(64, (2, 2), strides=(2, 2),padding='same',
-                kernel_initializer=initializers.random_normal(stddev=0.01))(conv7),conv2], axis=3)
-    conv8 = Conv2D(64, (3, 3), activation='relu', padding='same',
-                   kernel_initializer=initializers.random_normal(stddev=0.01))(up8)
-    conv8 = Conv2D(64, (3, 3), activation='relu', padding='same',)(conv8)
-
-    up9 = concatenate([Conv2DTranspose(32, (2, 2), strides=(2, 2), padding='same',
-                kernel_initializer=initializers.random_normal(stddev=0.01))(conv8),conv1], axis=3)
-    conv9 = Conv2D(32, (3, 3), activation='relu', padding='same',
-                   kernel_initializer=initializers.random_normal(stddev=0.01))(up9)
-    conv9 = Conv2D(32, (3, 3), activation='relu', padding='same',
-                   kernel_initializer=initializers.random_normal(stddev=0.01))(conv9)
-
-    conv10 = Conv2D(4, (1, 1), activation='relu',
-                    kernel_initializer=initializers.random_normal(stddev=0.01))(conv9)
-    conv10 = Activation('softmax')(conv10)
-    model = Model(inputs=[inputs], outputs=[conv10])
-
-    try:
-        lr = args.lr
-    except:
-        lr = 1e-4
-    model.compile(optimizer=Adam(lr=lr), loss=loss, metrics=metrics)
-
-    return model
-
-def lee_unet2(input_size, num_classes, lr, loss, metrics):
-    inputs = Input(input_size)
-    conv1 = Conv2D(64, (3, 3), activation='relu', padding='same',
-                   kernel_initializer=initializers.random_normal(stddev=0.01))(inputs)
-    conv1 = Conv2D(64, (3, 3), activation='relu', padding='same',
-                   kernel_initializer=initializers.random_normal(stddev=0.01))(conv1)
-    pool1 = MaxPooling2D(pool_size=(2, 2))(conv1)
-
-    conv2 = Conv2D(128, (3, 3), activation='relu', padding='same',
-                   kernel_initializer=initializers.random_normal(stddev=0.01))(pool1)
-    conv2 = Conv2D(128, (3, 3), activation='relu', padding='same',
-                   kernel_initializer=initializers.random_normal(stddev=0.01))(conv2)
-    pool2 = MaxPooling2D(pool_size=(2, 2))(conv2)
-
-    conv3 = Conv2D(256, (3, 3), activation='relu', padding='same',
-                   kernel_initializer=initializers.random_normal(stddev=0.01))(pool2)
-    conv3 = Conv2D(256, (3, 3), activation='relu', padding='same',
-                   kernel_initializer=initializers.random_normal(stddev=0.01))(conv3)
-    pool3 = MaxPooling2D(pool_size=(2, 2))(conv3)
-
-    conv4 = Conv2D(512, (3, 3), activation='relu', padding='same',
-                   kernel_initializer=initializers.random_normal(stddev=0.01))(pool3)
-    conv4 = Conv2D(512, (3, 3), activation='relu', padding='same',
-                   kernel_initializer=initializers.random_normal(stddev=0.01))(conv4)
-    pool4 = MaxPooling2D(pool_size=(2, 2))(conv4)
-
-    conv5 = Conv2D(1024, (3, 3), activation='relu', padding='same',
-                   kernel_initializer=initializers.random_normal(stddev=0.01))(pool4)
-    conv5 = Conv2D(1024, (3, 3), activation='relu', padding='same',
-                   kernel_initializer=initializers.random_normal(stddev=0.01))(conv5)
-
-    up6 = concatenate([Conv2DTranspose(256, (2, 2), strides=(2, 2), padding='same',
-                kernel_initializer=initializers.random_normal(stddev=0.01))(conv5),conv4], axis=3)
-    conv6 = Conv2D(512, (3, 3), activation='relu', padding='same',
-                   kernel_initializer=initializers.random_normal(stddev=0.01))(up6)
-    conv6 = Conv2D(512, (3, 3), activation='relu', padding='same',
-                   kernel_initializer=initializers.random_normal(stddev=0.01))(conv6)
-
-    up7 = concatenate([Conv2DTranspose(128, (2, 2), strides=(2, 2), padding='same',
-                kernel_initializer=initializers.random_normal(stddev=0.01))(conv6),conv3], axis=3)
-    conv7 = Conv2D(256, (3, 3), activation='relu', padding='same',
-                   kernel_initializer=initializers.random_normal(stddev=0.01))(up7)
-    conv7 = Conv2D(256, (3, 3), activation='relu', padding='same',
-                   kernel_initializer=initializers.random_normal(stddev=0.01))(conv7)
-
-    up8 = concatenate([Conv2DTranspose(64, (2, 2), strides=(2, 2),padding='same',
-                kernel_initializer=initializers.random_normal(stddev=0.01))(conv7),conv2], axis=3)
-    conv8 = Conv2D(128, (3, 3), activation='relu', padding='same',
-                   kernel_initializer=initializers.random_normal(stddev=0.01))(up8)
-    conv8 = Conv2D(128, (3, 3), activation='relu', padding='same',)(conv8)
-
-    up9 = concatenate([Conv2DTranspose(32, (2, 2), strides=(2, 2), padding='same',
-                kernel_initializer=initializers.random_normal(stddev=0.01))(conv8),conv1], axis=3)
-    conv9 = Conv2D(64, (3, 3), activation='relu', padding='same',
-                   kernel_initializer=initializers.random_normal(stddev=0.01))(up9)
-    conv9 = Conv2D(64, (3, 3), activation='relu', padding='same',
-                   kernel_initializer=initializers.random_normal(stddev=0.01))(conv9)
-
-    conv10 = Conv2D(4, (1, 1), activation='relu',
-                    kernel_initializer=initializers.random_normal(stddev=0.01))(conv9)
-    conv10 = Activation('softmax')(conv10)
-    model = Model(inputs=[inputs], outputs=[conv10])
-
-    try:
-        lr = args.lr
-    except:
-        lr = 1e-4
-    model.compile(optimizer=Adam(lr=lr), loss=loss, metrics=metrics)
-
-    return model
-
-def lee_unet2_dropout(input_size, num_classes, lr, loss, metrics):
-    inputs = Input(input_size)
-    conv1 = Conv2D(64, (3, 3), activation='relu', padding='same',
-                   kernel_initializer=initializers.random_normal(stddev=0.01))(inputs)
-    conv1 = Conv2D(64, (3, 3), activation='relu', padding='same',
-                   kernel_initializer=initializers.random_normal(stddev=0.01))(conv1)
-    pool1 = MaxPooling2D(pool_size=(2, 2))(conv1)
-
-    conv2 = Conv2D(128, (3, 3), activation='relu', padding='same',
-                   kernel_initializer=initializers.random_normal(stddev=0.01))(pool1)
-    conv2 = Conv2D(128, (3, 3), activation='relu', padding='same',
-                   kernel_initializer=initializers.random_normal(stddev=0.01))(conv2)
-    pool2 = MaxPooling2D(pool_size=(2, 2))(conv2)
-
-    conv3 = Conv2D(256, (3, 3), activation='relu', padding='same',
-                   kernel_initializer=initializers.random_normal(stddev=0.01))(pool2)
-    conv3 = Conv2D(256, (3, 3), activation='relu', padding='same',
-                   kernel_initializer=initializers.random_normal(stddev=0.01))(conv3)
-    pool3 = MaxPooling2D(pool_size=(2, 2))(conv3)
-
-    conv4 = Conv2D(512, (3, 3), activation='relu', padding='same',
-                   kernel_initializer=initializers.random_normal(stddev=0.01))(pool3)
-    conv4 = Conv2D(512, (3, 3), activation='relu', padding='same',
-                   kernel_initializer=initializers.random_normal(stddev=0.01))(conv4)
-    drop4 = Dropout(0.5)(conv4)
-    pool4 = MaxPooling2D(pool_size=(2, 2))(drop4)
-
-    conv5 = Conv2D(1024, (3, 3), activation='relu', padding='same',
-                   kernel_initializer=initializers.random_normal(stddev=0.01))(pool4)
-    conv5 = Conv2D(1024, (3, 3), activation='relu', padding='same',
-                   kernel_initializer=initializers.random_normal(stddev=0.01))(conv5)
-    drop5 = Dropout(0.5)(conv5)
-
-    up6 = concatenate([Conv2DTranspose(256, (2, 2), strides=(2, 2), padding='same',
-                kernel_initializer=initializers.random_normal(stddev=0.01))(drop5),conv4], axis=3)
-    conv6 = Conv2D(512, (3, 3), activation='relu', padding='same',
-                   kernel_initializer=initializers.random_normal(stddev=0.01))(up6)
-    conv6 = Conv2D(512, (3, 3), activation='relu', padding='same',
-                   kernel_initializer=initializers.random_normal(stddev=0.01))(conv6)
-
-    up7 = concatenate([Conv2DTranspose(128, (2, 2), strides=(2, 2), padding='same',
-                kernel_initializer=initializers.random_normal(stddev=0.01))(conv6),conv3], axis=3)
-    conv7 = Conv2D(256, (3, 3), activation='relu', padding='same',
-                   kernel_initializer=initializers.random_normal(stddev=0.01))(up7)
-    conv7 = Conv2D(256, (3, 3), activation='relu', padding='same',
-                   kernel_initializer=initializers.random_normal(stddev=0.01))(conv7)
-
-    up8 = concatenate([Conv2DTranspose(64, (2, 2), strides=(2, 2),padding='same',
-                kernel_initializer=initializers.random_normal(stddev=0.01))(conv7),conv2], axis=3)
-    conv8 = Conv2D(128, (3, 3), activation='relu', padding='same',
-                   kernel_initializer=initializers.random_normal(stddev=0.01))(up8)
-    conv8 = Conv2D(128, (3, 3), activation='relu', padding='same',)(conv8)
-
-    up9 = concatenate([Conv2DTranspose(32, (2, 2), strides=(2, 2), padding='same',
-                kernel_initializer=initializers.random_normal(stddev=0.01))(conv8),conv1], axis=3)
-    conv9 = Conv2D(64, (3, 3), activation='relu', padding='same',
-                   kernel_initializer=initializers.random_normal(stddev=0.01))(up9)
-    conv9 = Conv2D(64, (3, 3), activation='relu', padding='same',
-                   kernel_initializer=initializers.random_normal(stddev=0.01))(conv9)
-
-    conv10 = Conv2D(4, (1, 1), activation='relu',
-                    kernel_initializer=initializers.random_normal(stddev=0.01))(conv9)
-    conv10 = Activation('softmax')(conv10)
-    model = Model(inputs=[inputs], outputs=[conv10])
-
-    try:
-        lr = args.lr
-    except:
-        lr = 1e-4
-    model.compile(optimizer=Adam(lr=lr), loss=loss, metrics=metrics)
-
-    return model
-
-def lee_unet2_l1l2(input_size, num_classes, lr, loss, metrics):
-    inputs = Input(input_size)
-    conv1 = Conv2D(64, (3, 3), activation='relu', padding='same',
-                   kernel_initializer=initializers.random_normal(stddev=0.01), kernel_regularizer=l1_l2(l1=0.01, l2=0.01))(inputs)
-    conv1 = Conv2D(64, (3, 3), activation='relu', padding='same',
-                   kernel_initializer=initializers.random_normal(stddev=0.01), kernel_regularizer=l1_l2(l1=0.01, l2=0.01))(conv1)
-    pool1 = MaxPooling2D(pool_size=(2, 2))(conv1)
-
-    conv2 = Conv2D(128, (3, 3), activation='relu', padding='same',
-                   kernel_initializer=initializers.random_normal(stddev=0.01), kernel_regularizer=l1_l2(l1=0.01, l2=0.01))(pool1)
-    conv2 = Conv2D(128, (3, 3), activation='relu', padding='same',
-                   kernel_initializer=initializers.random_normal(stddev=0.01), kernel_regularizer=l1_l2(l1=0.01, l2=0.01))(conv2)
-    pool2 = MaxPooling2D(pool_size=(2, 2))(conv2)
-
-    conv3 = Conv2D(256, (3, 3), activation='relu', padding='same',
-                   kernel_initializer=initializers.random_normal(stddev=0.01), kernel_regularizer=l1_l2(l1=0.01, l2=0.01))(pool2)
-    conv3 = Conv2D(256, (3, 3), activation='relu', padding='same',
-                   kernel_initializer=initializers.random_normal(stddev=0.01), kernel_regularizer=l1_l2(l1=0.01, l2=0.01))(conv3)
-    pool3 = MaxPooling2D(pool_size=(2, 2))(conv3)
-
-    conv4 = Conv2D(512, (3, 3), activation='relu', padding='same',
-                   kernel_initializer=initializers.random_normal(stddev=0.01), kernel_regularizer=l1_l2(l1=0.01, l2=0.01))(pool3)
-    conv4 = Conv2D(512, (3, 3), activation='relu', padding='same',
-                   kernel_initializer=initializers.random_normal(stddev=0.01), kernel_regularizer=l1_l2(l1=0.01, l2=0.01))(conv4)
-    pool4 = MaxPooling2D(pool_size=(2, 2))(conv4)
-
-    conv5 = Conv2D(1024, (3, 3), activation='relu', padding='same',
-                   kernel_initializer=initializers.random_normal(stddev=0.01), kernel_regularizer=l1_l2(l1=0.01, l2=0.01))(pool4)
-    conv5 = Conv2D(1024, (3, 3), activation='relu', padding='same',
-                   kernel_initializer=initializers.random_normal(stddev=0.01), kernel_regularizer=l1_l2(l1=0.01, l2=0.01))(conv5)
-
-    up6 = concatenate([Conv2DTranspose(256, (2, 2), strides=(2, 2), padding='same',
-                kernel_initializer=initializers.random_normal(stddev=0.01), kernel_regularizer=l1_l2(l1=0.01, l2=0.01))(conv5),conv4], axis=3)
-    conv6 = Conv2D(512, (3, 3), activation='relu', padding='same',
-                   kernel_initializer=initializers.random_normal(stddev=0.01), kernel_regularizer=l1_l2(l1=0.01, l2=0.01))(up6)
-    conv6 = Conv2D(512, (3, 3), activation='relu', padding='same',
-                   kernel_initializer=initializers.random_normal(stddev=0.01), kernel_regularizer=l1_l2(l1=0.01, l2=0.01))(conv6)
-
-    up7 = concatenate([Conv2DTranspose(128, (2, 2), strides=(2, 2), padding='same',
-                kernel_initializer=initializers.random_normal(stddev=0.01), kernel_regularizer=l1_l2(l1=0.01, l2=0.01))(conv6),conv3], axis=3)
-    conv7 = Conv2D(256, (3, 3), activation='relu', padding='same',
-                   kernel_initializer=initializers.random_normal(stddev=0.01), kernel_regularizer=l1_l2(l1=0.01, l2=0.01))(up7)
-    conv7 = Conv2D(256, (3, 3), activation='relu', padding='same',
-                   kernel_initializer=initializers.random_normal(stddev=0.01), kernel_regularizer=l1_l2(l1=0.01, l2=0.01))(conv7)
-
-    up8 = concatenate([Conv2DTranspose(64, (2, 2), strides=(2, 2),padding='same',
-                kernel_initializer=initializers.random_normal(stddev=0.01), kernel_regularizer=l1_l2(l1=0.01, l2=0.01))(conv7),conv2], axis=3)
-    conv8 = Conv2D(128, (3, 3), activation='relu', padding='same',
-                   kernel_initializer=initializers.random_normal(stddev=0.01), kernel_regularizer=l1_l2(l1=0.01, l2=0.01))(up8)
-    conv8 = Conv2D(128, (3, 3), activation='relu', padding='same',)(conv8)
-
-    up9 = concatenate([Conv2DTranspose(32, (2, 2), strides=(2, 2), padding='same',
-                kernel_initializer=initializers.random_normal(stddev=0.01), kernel_regularizer=l1_l2(l1=0.01, l2=0.01))(conv8),conv1], axis=3)
-    conv9 = Conv2D(64, (3, 3), activation='relu', padding='same',
-                   kernel_initializer=initializers.random_normal(stddev=0.01), kernel_regularizer=l1_l2(l1=0.01, l2=0.01))(up9)
-    conv9 = Conv2D(64, (3, 3), activation='relu', padding='same',
-                   kernel_initializer=initializers.random_normal(stddev=0.01), kernel_regularizer=l1_l2(l1=0.01, l2=0.01))(conv9)
-
-    conv10 = Conv2D(4, (1, 1), activation='relu',
-                    kernel_initializer=initializers.random_normal(stddev=0.01), kernel_regularizer=l1_l2(l1=0.01, l2=0.01))(conv9)
-    conv10 = Activation('softmax')(conv10)
-    model = Model(inputs=[inputs], outputs=[conv10])
-
-    try:
-        lr = args.lr
-    except:
-        lr = 1e-4
-    model.compile(optimizer=Adam(lr=lr), loss=loss, metrics=metrics)
-
-    return model
-
 def zscore_norm(MRI):
     '''
     :param MRI: Image data should be given patientwise
@@ -1362,6 +747,16 @@ def zscore_norm(MRI):
     return MRI_f.reshape(MRI.shape)
 
 def unet_res(input_size, num_classes, lr, metrics, loss, pretrained_weights=None):
+    '''
+    Function to build U-Net
+    :param input_size: A tuple that specifies the input shape to the network
+    :param num_classes: How many classes the classification problem at hand has
+    :param lr: learning rate to use during optimization
+    :param metrics: a list of the metrics to use
+    :param loss: specify loss function either with a string which keras supports or with a function
+    :param pretrained_weights: If there exists pretrained weights these can optionally be passed
+    :return: Returns a compiled U-Net
+    '''
     kernel_size = 3
     conv_kwargs = {
         'strides': (1, 1),
@@ -1479,30 +874,33 @@ def unet_res(input_size, num_classes, lr, metrics, loss, pretrained_weights=None
         unet.load_weights(pretrained_weights)
     return unet
 
-def convert_brats_to_asgeir(Y):
-    tumor_core = Y[:, :, :, 1] + Y[:, :, :, 3]
-    tumor_core = np.expand_dims(tumor_core, axis=3)
-    new_background = Y[:, :, :, 0] + Y[:, :, :, 2]
-    new_background = np.expand_dims(new_background, axis=3)
-    Y_converted = np.concatenate((new_background, tumor_core), axis=3)
-    return Y_converted
-
-def sensor_fused_unet_v2(input_size, lr, metrics, num_classes):
+def multi_stream_unet_end_to_end(input_size, lr, metrics, num_classes):
+    '''
+    Function to build U-Net
+    :param input_size: A tuple that specifies the input shape to the network
+    :param num_classes: How many classes the classification problem at hand has
+    :param lr: learning rate to use during optimization
+    :param metrics: a list of the metrics to use
+    :return: Returns a compiled U-Net
+    '''
     conv_kwargs = {
         'strides': (1, 1),
         'padding': 'same',
         'activation': 'relu',
-        'kernel_initializer': 'he_normal'
+        'kernel_initializer': 'he_normal',
+        'kernel_regularizer': l2(0.001)
     }
     conv_transpose_kwargs = {
         'strides': (2, 2),
-        'kernel_initializer': 'he_normal'
+        'kernel_initializer': 'he_normal',
+        'kernel_regularizer': l2(0.001)
     }
     conv_kwargs_fin = {
         'strides': (1, 1),
         'padding': 'same',
         'activation': 'relu',
-        'kernel_initializer': 'he_normal'
+        'kernel_initializer': 'he_normal',
+        'kernel_regularizer': l2(0.001)
     }
     pooling_kwargs = {
         'pool_size': (2, 2)
@@ -1529,22 +927,20 @@ def sensor_fused_unet_v2(input_size, lr, metrics, num_classes):
         pool3 = MaxPooling2D(pool_size=(2, 2))(conv3)
 
         conv4 = Conv2D(256, (3, 3), **conv_kwargs)(pool3)
-        conv4 = Dropout(0.2)(conv4)
+        conv4 = Dropout(0.1)(conv4)
         conv4 = Conv2D(256, (3, 3), **conv_kwargs)(conv4)
-        conv4 = Dropout(0.2)(conv4)
+        conv4 = Dropout(0.1)(conv4)
         pool4 = MaxPooling2D(pool_size=(2, 2))(conv4)
 
         conv5 = Conv2D(512, (3, 3), padding='same')(pool4)
-        conv5 = Dropout(0.2)(conv5)
+        conv5 = Dropout(0.1)(conv5)
         conv5 = Conv2D(512, (3, 3), padding='same')(conv5)
-        conv5 = Dropout(0.2)(conv5)
+        conv5 = Dropout(0.1)(conv5)
 
         up6 = Conv2DTranspose(128, (2, 2), **conv_transpose_kwargs)(conv5)
         merge6 = concatenate([conv4, up6], axis=3)
         conv6 = Conv2D(256, (3, 3), **conv_kwargs)(merge6)
-        conv6 = Dropout(0.2)(conv6)
         conv6 = Conv2D(256, (3, 3), **conv_kwargs)(conv6)
-        conv6 = Dropout(0.2)(conv6)
 
         up7 = Conv2DTranspose(128, (2, 2), **conv_transpose_kwargs)(conv6)
         merge7 = concatenate([conv3, up7], axis=3)
@@ -1577,7 +973,17 @@ def sensor_fused_unet_v2(input_size, lr, metrics, num_classes):
     model.compile(optimizer=Adam(lr=lr), loss='categorical_crossentropy', metrics=metrics)
     return model
 
-def sensor_fused_unet_v3(m_t1, m_t1ce, m_t2, m_flair, lr, loss, metrics):
+def multi_stream_unet_trained_sequentially(m_t1, m_t1ce, m_t2, m_flair, lr, loss, metrics):
+    '''
+    :param m_t1: Compiled "unet_dong_each_mod" U-Net with weights trained on T1 modality
+    :param m_t1ce:  Compiled "unet_dong_each_mod" U-Net with weights trained on T1ce modality
+    :param m_t2: Compiled "unet_dong_each_mod" U-Net with weights trained on T2 modality
+    :param m_flair: Compiled "unet_dong_each_mod" U-Net with weights trained on flair modality
+    :param lr: Learning rate to be used during optimization
+    :param loss: Loss function to be used during optimization
+    :param metrics: A list of the metrics to be saved during optimization
+    :return:
+    '''
     kernel_size = 3
     conv_kwargs = {
         'strides': (1, 1),
@@ -1613,7 +1019,7 @@ def sensor_fused_unet_v3(m_t1, m_t1ce, m_t2, m_flair, lr, loss, metrics):
     m2_flair.trainable = False
     
     input_ = Input((176, 176, 4))
-    split = Lambda(lambda x: tf.split(x,num_or_size_splits=4,axis=3))(input_)
+    split = Lambda(lambda x: tf.split(x, num_or_size_splits=4, axis=3))(input_)
     
     output_t1 = m2_t1(split[0])
     output_t1ce = m2_t1ce(split[1])
@@ -1630,7 +1036,3 @@ def sensor_fused_unet_v3(m_t1, m_t1ce, m_t2, m_flair, lr, loss, metrics):
     model = Model(input=input_, output=out)
     model.compile(optimizer=Adam(lr=lr), loss=loss, metrics=metrics)
     return model
-
-
-print('Finished')
-print_memory_use()

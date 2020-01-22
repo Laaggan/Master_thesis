@@ -6,6 +6,12 @@ import tensorflow as tf
 # https://github.com/Issam28/Brain-tumor-segmentation/blob/master/losses.py
 
 def dice(y_true, y_pred):
+    '''
+    Computes the dice coefficient between ground truth and predictions
+    :param y_true: Ground truth
+    :param y_pred: Predictions
+    :return: Computed dice coeffient
+    '''
     # computes the dice score on two tensors
     sum_p = K.sum(y_pred, axis=0)
     sum_r = K.sum(y_true, axis=0)
@@ -17,6 +23,12 @@ def dice(y_true, y_pred):
 
 
 def dice_whole_metric(y_true, y_pred):
+    '''
+    Computes the dice coefficient between ground truth and predictions
+    :param y_true: Ground truth
+    :param y_pred: Predictions
+    :return: Computed dice coeffient
+    '''
     # computes the dice for the whole tumor
     y_true_f = K.reshape(y_true, shape=(-1, 4))
     y_pred_f = K.reshape(y_pred, shape=(-1, 4))
@@ -27,6 +39,12 @@ def dice_whole_metric(y_true, y_pred):
 
 
 def dice_en_metric(y_true, y_pred):
+    '''
+    Computes the dice coefficient between ground truth and predictions
+    :param y_true: Ground truth
+    :param y_pred: Predictions
+    :return: Computed dice coeffient
+    '''
     # computes the dice for the enhancing region
     y_true_f = K.reshape(y_true, shape=(-1, 4))
     y_pred_f = K.reshape(y_pred, shape=(-1, 4))
@@ -37,6 +55,12 @@ def dice_en_metric(y_true, y_pred):
 
 
 def dice_core_metric(y_true, y_pred):
+    '''
+    Computes the dice coefficient between ground truth and predictions
+    :param y_true: Ground truth
+    :param y_pred: Predictions
+    :return: Computed dice coeffient
+    '''
     ##computes the dice for the core region
     y_true_f = K.reshape(y_true, shape=(-1, 4))
     y_pred_f = K.reshape(y_pred, shape=(-1, 4))
@@ -65,6 +89,10 @@ def weighted_log_loss(y_true, y_pred):
 def gen_dice_loss(y_true, y_pred):
     '''
     computes the sum of two losses : generalised dice loss and weighted cross entropy
+    :param y_true: Ground truth
+    :param y_pred: Predictions
+    :return: Loss function
+
     '''
 
     # generalised dice score is calculated as in this paper : https://arxiv.org/pdf/1707.03237
@@ -83,6 +111,12 @@ def gen_dice_loss(y_true, y_pred):
     return GDL + weighted_log_loss(y_true, y_pred)
 
 def dice_binary_metric(y_true, y_pred):
+    '''
+    Computes the dice coefficient between ground truth and predictions
+    :param y_true: Ground truth
+    :param y_pred: Predictions
+    :return: Computed dice coeffient
+    '''
     # computes the dice for the enhancing region
     y_true_f = K.reshape(y_true, shape=(-1, 2))
     y_pred_f = K.reshape(y_pred, shape=(-1, 2))
