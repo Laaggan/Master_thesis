@@ -35,7 +35,7 @@ es = EarlyStopping(monitor='val_loss', mode='auto', verbose=1, patience=10)
 tbc = TensorBoard(log_dir=log_dir)
 
 metrics = [dice, dice_en_metric, dice_core_metric, dice_whole_metric, 'accuracy']
-unet = unet_dong_et_al2(input_size=input_size, num_classes=4, lr=lr, loss='categorical_crossentropy', metrics=metrics)
+unet = single_stream_unet(input_size=input_size, num_classes=4, lr=lr, loss='categorical_crossentropy', metrics=metrics)
 
 X_train = X_train.reshape(-1, H, W, 4)
 Y_train = Y_train.reshape(-1, H, W, 4)
