@@ -1,3 +1,6 @@
+# Models with trained weights
+The trained models can be found [here!](https://drive.google.com/open?id=1_bwPKMN2R7OXwfuVn8ThqN8VnUDTffEG)
+
 # Scripts for training U-Nets for BraTS challenge
 
 The scripts that were used to train the 
